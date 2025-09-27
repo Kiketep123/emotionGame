@@ -32,3 +32,4 @@ core/build/
 desktop/build/
 html/build/
 ios/build/
+*.exe
