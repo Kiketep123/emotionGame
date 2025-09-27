@@ -1,0 +1,65 @@
+[
+  {
+    "effect": "FUEGO",
+    "displayName": "Quemadura",
+    "spriteId": "SPRITE_BURN",
+    "uiColorHex": "#FF4500",
+    "cssClass": "burn-effect"
+  },
+  {
+    "effect": "CURACION",
+    "displayName": "Curación",
+    "spriteId": "SPRITE_HEAL",
+    "uiColorHex": "#00FF7F",
+    "cssClass": "heal-effect"
+  },
+  {
+    "effect": "VENENO",
+    "displayName": "Veneno",
+    "spriteId": "SPRITE_POISON",
+    "uiColorHex": "#8A2BE2",
+    "cssClass": "poison-effect"
+  },
+  {
+    "effect": "REBOTE",
+    "displayName": "Rebote",
+    "spriteId": "SPRITE_REFLECT",
+    "uiColorHex": "#FFD700",
+    "cssClass": "reflect-effect"
+  },
+  {
+    "effect": "RALENTIZAR",
+    "displayName": "Ralentización",
+    "spriteId": "SPRITE_SLOW",
+    "uiColorHex": "#1E90FF",
+    "cssClass": "slow-effect"
+  },
+  {
+    "effect": "DEFENDER",
+    "displayName": "Defensa",
+    "spriteId": "SPRITE_DEFENSE",
+    "uiColorHex": "#4682B4",
+    "cssClass": "defense-effect"
+  },
+  {
+    "effect": "STUN",
+    "displayName": "Aturdimiento",
+    "spriteId": "SPRITE_STUN",
+    "uiColorHex": "#FF1493",
+    "cssClass": "stun-effect"
+  },
+  {
+    "effect": "REGENERACION",
+    "displayName": "Regeneración",
+    "spriteId": "SPRITE_REGEN",
+    "uiColorHex": "#00CED1",
+    "cssClass": "regen-effect"
+  },
+  {
+    "effect": "ENERGIZAR",
+    "displayName": "Energía",
+    "spriteId": "SPRITE_ENERGIZE",
+    "uiColorHex": "#FFA500",
+    "cssClass": "energize-effect"
+  }
+]

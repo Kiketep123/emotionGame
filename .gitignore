@@ -1,0 +1,34 @@
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+# Build
+/bin/
+/build/
+/out/
+/target/
+
+# Gradle
+.gradle/
+gradle-app.setting
+build/
+
+# IntelliJ (por si alternas)
+.idea/
+*.iml
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# LibGDX (si aplica)
+android/build/
+core/build/
+desktop/build/
+html/build/
+ios/build/
