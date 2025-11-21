@@ -70,6 +70,8 @@ public class Attack {
 	public void applyToEnemy(Enemy enemigo, int damage) {
 		// 1) Infligir daño
 		enemigo.recibirDanyo(damage);
+
+		// TODO Esto no ahce nada
 		// 2) Aplicar efectos secundarios del ataque
 		for (EffectDetail ed : efectos) {
 			// Aplica modificación al ataque (rebote, velocidad, etc.)

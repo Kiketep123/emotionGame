@@ -96,9 +96,6 @@ public class EffectDetail extends AbstractTimedEffect {
 		this.probabilidad = probabilidad;
 	}
 
-	public int getDuracionRestante() {
-		return duracionRestante;
-	}
 
 	public void setDuracionRestante(int duracionRestante) {
 		this.duracionRestante = duracionRestante;

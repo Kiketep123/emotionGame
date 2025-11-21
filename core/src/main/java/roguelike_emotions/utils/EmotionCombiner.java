@@ -1,297 +1,341 @@
 package roguelike_emotions.utils;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import roguelike_emotions.effects.EffectDetail;
-import roguelike_emotions.mainMechanics.DominantEmotionType;
-import roguelike_emotions.mainMechanics.EmotionDominanceMatrix;
-import roguelike_emotions.mainMechanics.EmotionEffect;
-import roguelike_emotions.mainMechanics.EmotionInstance;
-import roguelike_emotions.mainMechanics.EmotionNameGenerator;
-import roguelike_emotions.mainMechanics.EmotionType;
+import roguelike_emotions.mainMechanics.*;
 
 /**
- * Combina dos emociones **reales** y registra solo aquí, aplicando
- * sinergias/tensiones según la EmotionDominanceMatrix.
+ * Combina emociones aplicando sinergias y tensiones según la
+ * EmotionDominanceMatrix. Soporta fusión de 2 o más emociones simultáneamente.
  */
 public class EmotionCombiner {
-	// Matriz de dominancia compartida (inyectada desde GameManager)
-	private static EmotionDominanceMatrix matrix;
-	private static final double FUSION_THRESHOLD = 1.1;
 
-	/** Debes llamar a esto una vez al inicializar el GameManager */
+	// ==================== CONSTANTES ====================
+	private static final double FUSION_THRESHOLD = 1.1;
+	private static final double MIN_COMPATIBILITY_FACTOR = 0.75;
+	private static final double MAX_COMPATIBILITY_FACTOR = 1.25;
+	private static final double COMPATIBILITY_WEIGHT = 0.5;
+	private static final double ANTAGONISM_PENALTY = 0.9;
+	private static final String MULTI_FUSION_SYMBOL = "🔀";
+	private static final String FUSION_KEY_SEPARATOR = "|";
+
+	// ==================== DEPENDENCIAS ====================
+	private static EmotionDominanceMatrix matrix;
+
+	/**
+	 * Inyecta la matriz de dominancia (debe llamarse al inicializar GameManager)
+	 */
 	public static void setDominanceMatrix(EmotionDominanceMatrix m) {
+		if (m == null) {
+			throw new IllegalArgumentException("La matriz de dominancia no puede ser null");
+		}
 		matrix = m;
 	}
 
+	// ==================== FUSIÓN DE DOS EMOCIONES ====================
+
+	/**
+	 * Combina dos emociones en una nueva emoción fusionada.
+	 *
+	 * @throws IllegalArgumentException si las emociones no son compatibles o son
+	 *                                  null
+	 */
 	public static EmotionInstance combinar(EmotionInstance e1, EmotionInstance e2) {
-		// 1) verificar registro
+		validateEmotions(e1, e2);
+
 		if (!canFuse(e1, e2)) {
-			throw new IllegalArgumentException("Estas emociones no son compatibles para fusionar.");
-		}
-		EmotionInstance ex = FusionRegistry.obtenerFusion(e1.getId(), e2.getId());
-		if (ex != null)
-			return ex;
-
-		// 2) juntar y agrupar efectos sin duplicados
-		Map<EmotionEffect, EffectDetail> map = new LinkedHashMap<>();
-		Stream.concat(e1.getEfectos().stream(), e2.getEfectos().stream()).forEach(ed -> {
-			EmotionEffect tipo = ed.getTipo(); // ← Usa el string para obtener el enum
-
-			if (!map.containsKey(tipo)) {
-				map.put(tipo,
-						new EffectDetail(tipo, ed.getIntensidad(), ed.getProbabilidad(), ed.getDuracionRestante()));
-			} else {
-				EffectDetail o = map.get(tipo);
-				map.put(tipo,
-						new EffectDetail(tipo, o.getIntensidad() + ed.getIntensidad(),
-								Math.max(o.getProbabilidad(), ed.getProbabilidad()),
-								Math.max(o.getDuracionRestante(), ed.getDuracionRestante())));
-			}
-		});
-
-		// 3) convertir a lista
-		List<EffectDetail> fusionDetalles = new ArrayList<>(map.values());
-
-		// 4) calcular factor de compatibilidad
-		double factor = calcularFactorCompatibilidad(e1.getTipoBase(), e2.getTipoBase());
-
-		// 5) ajustar intensidades
-		List<EffectDetail> ajustados = new ArrayList<>();
-		for (EffectDetail ed : fusionDetalles) {
-			ajustados.add(new EffectDetail(ed.getTipo(), ed.getIntensidad() * factor, ed.getProbabilidad(),
-					ed.getDuracionRestante()));
+			throw new IllegalArgumentException(String.format("Las emociones %s y %s no son compatibles para fusionar.",
+					e1.getNombre(), e2.getNombre()));
 		}
 
-		// 6) categoría dominante y tipo base resultante
-		DominantEmotionType dom = EmotionUtils.detectarTipoDominante(e1, e2);
-		EmotionType tipoBase = EmotionUtils.convertirDominantToEmotionType(dom);
+		// Buscar fusión existente en el registro
+		EmotionInstance cached = FusionRegistry.obtenerFusion(e1.getId(), e2.getId());
+		if (cached != null) {
+			return cached;
+		}
 
-		// 7) nombre, símbolo y color mixto
-		String nombre = EmotionNameGenerator.generarNombreGuiado(dom);
-		String simbolo = EmotionNameGenerator.generarSimbolo(dom);
+		// Crear nueva fusión
+		List<EffectDetail> fusionEffects = mergeEffects(Arrays.asList(e1, e2));
+		double compatibilityFactor = calcularFactorCompatibilidad(e1.getTipoBase(), e2.getTipoBase());
+		List<EffectDetail> adjustedEffects = applyCompatibilityFactor(fusionEffects, compatibilityFactor);
 
-		Color c1 = Color.decode(e1.getColor());
-		Color c2 = Color.decode(e2.getColor());
-		String mixColor = EmotionUtils.mixColorrs(c1, c2);
+		DominantEmotionType dominantType = EmotionUtils.detectarTipoDominante(e1, e2);
+		EmotionType baseType = EmotionUtils.convertirDominantToEmotionType(dominantType);
 
-		// 8) crear y registrar
-		EmotionInstance fusionada = new EmotionInstance(nombre, tipoBase, ajustados, mixColor, simbolo);
-		FusionRegistry.registrarFusion(e1.getId(), e2.getId(), fusionada);
-		return fusionada;
+		String name = EmotionNameGenerator.generarNombreGuiado(dominantType);
+		String symbol = EmotionNameGenerator.generarSimbolo(dominantType);
+		String color = mixColors(Arrays.asList(e1.getColor(), e2.getColor()));
+
+		EmotionInstance fusion = new EmotionInstance(name, baseType, adjustedEffects, color, symbol);
+		FusionRegistry.registrarFusion(e1.getId(), e2.getId(), fusion);
+
+		return fusion;
 	}
 
 	/**
-	 * Factor de compatibilidad entre dos tipos base: media de peso(t1→t2) y
-	 * peso(t2→t1) normalizada a [0.75,1.25].
+	 * Verifica si dos emociones pueden fusionarse según su compatibilidad.
+	 */
+	public static boolean canFuse(EmotionInstance e1, EmotionInstance e2) {
+		validateMatrix();
+		validateEmotions(e1, e2);
+
+		double avgWeight = calculateAverageWeight(e1.getTipoBase(), e2.getTipoBase());
+		return avgWeight >= FUSION_THRESHOLD;
+	}
+
+	// ==================== FUSIÓN MÚLTIPLE ====================
+
+	/**
+	 * Combina simultáneamente n emociones (n ≥ 2).
+	 *
+	 * @throws IllegalArgumentException si hay menos de 2 emociones o son null
+	 */
+	public static EmotionInstance combinarMultiples(List<EmotionInstance> emotions) {
+		validateMultipleEmotions(emotions);
+
+		// Verificar caché con clave concatenada
+		String cacheKey = buildMultiFusionKey(emotions);
+		EmotionInstance cached = FusionRegistry.obtenerFusionPorClave(cacheKey);
+		if (cached != null) {
+			return cached;
+		}
+
+		// Consolidar efectos
+		List<EffectDetail> mergedEffects = mergeEffects(emotions);
+
+		// Calcular tipo base dominante
+		EmotionType baseType = detectarTipoBaseMultiple(emotions);
+
+		// Generar atributos visuales
+		String name = EmotionNameGenerator.generarNombrePorTipo(baseType);
+		String symbol = MULTI_FUSION_SYMBOL;
+		String color = mixColors(emotions.stream().map(EmotionInstance::getColor).collect(Collectors.toList()));
+
+		// Aplicar factores de compatibilidad y penalizaciones
+		double globalFactor = calcularFactorCompatibilidadMultiple(emotions);
+		double penaltyFactor = aplicarPenalizacionesAntagonistas(emotions);
+		double finalFactor = globalFactor * penaltyFactor;
+
+		List<EffectDetail> adjustedEffects = applyCompatibilityFactor(mergedEffects, finalFactor);
+
+		// Crear y registrar
+		EmotionInstance fusion = new EmotionInstance(name, baseType, adjustedEffects, color, symbol);
+		FusionRegistry.registrarFusionMultiple(cacheKey, emotions, fusion);
+
+		return fusion;
+	}
+
+	// ==================== MÉTODOS DE COMPATIBILIDAD ====================
+
+	/**
+	 * Calcula el factor de compatibilidad entre dos tipos base. Rango normalizado:
+	 * [0.75, 1.25]
 	 */
 	private static double calcularFactorCompatibilidad(EmotionType t1, EmotionType t2) {
 		if (matrix == null) {
-			// Fallback: sin factor si no se ha inyectado
 			return 1.0;
 		}
-		double p12 = matrix.getPeso(t1, t2);
-		double p21 = matrix.getPeso(t2, t1);
-		double media = (p12 + p21) / 2.0;
-		double factor = 1.0 + (media - 1.0) * 0.5;
-		return Math.max(0.75, Math.min(1.25, factor));
+
+		double avgWeight = calculateAverageWeight(t1, t2);
+		double factor = 1.0 + (avgWeight - 1.0) * COMPATIBILITY_WEIGHT;
+
+		return clampFactor(factor);
 	}
 
-	public static boolean canFuse(EmotionInstance e1, EmotionInstance e2) {
-		EmotionType t1 = e1.getTipoBase(), t2 = e2.getTipoBase();
-		double peso12 = matrix.getPeso(t1, t2);
-		double peso21 = matrix.getPeso(t2, t1);
-		double media = (peso12 + peso21) / 2;
-		return media >= FUSION_THRESHOLD;
+	/**
+	 * Calcula el factor de compatibilidad global para múltiples emociones.
+	 * Considera todas las interacciones por pares.
+	 */
+	private static double calcularFactorCompatibilidadMultiple(List<EmotionInstance> emotions) {
+		if (matrix == null || emotions.size() < 2) {
+			return 1.0;
+		}
+
+		List<Double> pairWeights = new ArrayList<>();
+
+		for (int i = 0; i < emotions.size(); i++) {
+			for (int j = i + 1; j < emotions.size(); j++) {
+				EmotionType t1 = emotions.get(i).getTipoBase();
+				EmotionType t2 = emotions.get(j).getTipoBase();
+				pairWeights.add(calculateAverageWeight(t1, t2));
+			}
+		}
+
+		double avgInternal = pairWeights.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
+
+		double factor = 1.0 + (avgInternal - 1.0) * COMPATIBILITY_WEIGHT;
+
+		return clampFactor(factor);
 	}
-	
-	// ---------------------------------------------------------------------------------
-    // 2.2. NUEVO MÉTODO: combinarMultiples(List<EmotionInstance>)
-    //       Combina simultáneamente n emociones (n ≥ 2).
-    // ---------------------------------------------------------------------------------
-    public static EmotionInstance combinarMultiples(List<EmotionInstance> entradas) {
-        if (entradas == null || entradas.size() < 2) {
-            throw new IllegalArgumentException("Se requieren al menos dos emociones para fusionar.");
-        }
 
-        //  a) Verificar si ya existe en el registro una fusión exacta de este conjunto
-        //     Para simplificar, concatenamos los IDs en orden lexicográfico:
-        List<String> ids = entradas.stream()
-                .map(EmotionInstance::getId)
-                .sorted()
-                .collect(Collectors.toList());
-        String keyConcatenado = String.join("|", ids);
-        EmotionInstance posible = FusionRegistry.obtenerFusionPorClave(keyConcatenado);
-        if (posible != null) {
-            return posible;
-        }
+	/**
+	 * Aplica penalizaciones por combinaciones antagónicas.
+	 */
+	private static double aplicarPenalizacionesAntagonistas(List<EmotionInstance> emotions) {
+		Map<EmotionType, List<EmotionType>> antagonisms = buildAntagonismMap();
 
-        //  b) Consolidar todos los EffectDetail de las n emociones en un mapa
-        Map<String, EffectDetail> mapaUnificado = new LinkedHashMap<>();
-        for (EmotionInstance e : entradas) {
-            for (EffectDetail ed : e.getEfectos()) {
-                String t = ed.getTipo().name();
-                if (!mapaUnificado.containsKey(t)) {
-                    // Copiamos
-                    mapaUnificado.put(t, new EffectDetail(
-                            ed.getTipo(),
-                            ed.getIntensidad(),
-                            ed.getProbabilidad(),
-                            ed.getDuracionRestante()
-                    ));
-                } else {
-                    EffectDetail existente = mapaUnificado.get(t);
-                    double sumaInt = existente.getIntensidad() + ed.getIntensidad();
-                    int maxDur   = Math.max(existente.getDuracionRestante(), ed.getDuracionRestante());
-                    double maxProb= Math.max(existente.getProbabilidad(), ed.getProbabilidad());
-                    mapaUnificado.put(t, new EffectDetail(
-                            ed.getTipo(),
-                            sumaInt,
-                            maxProb,
-                            maxDur
-                    ));
-                }
-            }
-        }
-        List<EffectDetail> fusionDetalles = new ArrayList<>(mapaUnificado.values());
+		double penalty = 1.0;
 
-        //  c) Determinar “tipoBase” dominante en el grupo
-        EmotionType tipoBase = detectarTipoBaseMultiple(entradas);
+		for (int i = 0; i < emotions.size(); i++) {
+			EmotionType t1 = emotions.get(i).getTipoBase();
 
-        //  d) Nombre, símbolo y color resultante
-        String nombre = EmotionNameGenerator.generarNombrePorTipo(tipoBase); 
-        // (podríamos usar un nombre guiado más complejo si quisiéramos distinguir
-        //  fusiones de 3, 4 emociones, etc. pero para simplicidad usamos generarNombreUnico)
-        String simbolo = "�mix"; 
-        // (puedes definir un emoji o un símbolo genérico para fusiones múltiples)
-        // Mezclamos colores promediando componentes RGB:
-        Color c0 = Color.decode(entradas.get(0).getColor());
-        float rSum = c0.getRed(), gSum = c0.getGreen(), bSum = c0.getBlue();
-        for (int i = 1; i < entradas.size(); i++) {
-            Color ci = Color.decode(entradas.get(i).getColor());
-            rSum += ci.getRed();
-            gSum += ci.getGreen();
-            bSum += ci.getBlue();
-        }
-        int n = entradas.size();
-        String mixColor = String.format("#%02X%02X%02X",
-                Math.min(255, Math.round(rSum / n)),
-                Math.min(255, Math.round(gSum / n)),
-                Math.min(255, Math.round(bSum / n)));
+			for (int j = i + 1; j < emotions.size(); j++) {
+				EmotionType t2 = emotions.get(j).getTipoBase();
 
-        //  e) Aplicar factor de compatibilidad global de todo el grupo
-        double factorGlobal = calcularFactorCompatibilidadMultiple(entradas);
+				if (areAntagonistic(t1, t2, antagonisms)) {
+					penalty *= ANTAGONISM_PENALTY;
+				}
+			}
+		}
 
-        //  f) Aplicar reglas de “umbral especial” para pares prohibidos o “antagónicos”
-        double  factorPenalizacion = aplicarPenalizacionesAntagonistas(entradas);
+		return Math.max(MIN_COMPATIBILITY_FACTOR, penalty);
+	}
 
-        //  g) Ajustar la lista de EffectDetail con factorGlobal * factorPenalizacion
-        List<EffectDetail> ajustadosFinal = fusionDetalles.stream()
-                .map(ed -> new EffectDetail(
-                        ed.getTipo(),
-                        ed.getIntensidad() * factorGlobal * factorPenalizacion,
-                        ed.getProbabilidad(),
-                        ed.getDuracionRestante()
-                ))
-                .collect(Collectors.toList());
+	// ==================== PROCESAMIENTO DE EFECTOS ====================
 
-        //  h) Crear y registrar con la “clave” multiple (concatenada) para no repetir
-        EmotionInstance fusionada = new EmotionInstance(nombre, tipoBase, ajustadosFinal, mixColor, simbolo);
-        FusionRegistry.registrarFusionMultiple(keyConcatenado, entradas, fusionada);
-        return fusionada;
-    }
-    
-    // -----------------------------
-    //  Método auxiliar para detectar el tipo dominante entre n emociones
-    // -----------------------------
-    private static EmotionType detectarTipoBaseMultiple(List<EmotionInstance> emos) {
-        // Contamos puntajes para cada candidato T ∈ EmotionType
-        Map<EmotionType, Double> puntajes = new LinkedHashMap<>();
-        for (EmotionType candidato : EmotionType.values()) {
-            puntajes.put(candidato, 0.0);
-        }
+	/**
+	 * Fusiona efectos de múltiples emociones, sumando intensidades y tomando
+	 * máximos.
+	 */
+	private static List<EffectDetail> mergeEffects(List<EmotionInstance> emotions) {
+		Map<EmotionEffect, EffectDetail> effectMap = new LinkedHashMap<>();
 
-        int n = emos.size();
-        // Sumamos peso(e_i → candidato) para cada i=1..n
-        for (EmotionInstance e : emos) {
-            EmotionType t_i = e.getTipoBase();
-            for (EmotionType candidato : EmotionType.values()) {
-                double w = (matrix != null)
-                         ? matrix.getPeso(t_i, candidato)
-                         : 1.0;
-                puntajes.put(candidato, puntajes.get(candidato) + w);
-            }
-        }
-        // Dividimos por n para obtener un promedio
-        for (EmotionType candidato : puntajes.keySet()) {
-            puntajes.put(candidato, puntajes.get(candidato) / n);
-        }
+		emotions.stream().flatMap(e -> e.getEfectos().stream()).forEach(detail -> {
+			EmotionEffect type = detail.getTipo();
 
-        // Elegimos aquel con mayor puntaje
-        return puntajes.entrySet().stream()
-                .max((a, b) -> Double.compare(a.getValue(), b.getValue()))
-                .get()
-                .getKey();
-    }
-    // -----------------------------
-    //  Método auxiliar para calcular factor de compatibilidad global (interacciones internas)
-    // -----------------------------
-    private static double calcularFactorCompatibilidadMultiple(List<EmotionInstance> emos) {
-        if (matrix == null || emos.size() < 2) {
-            return 1.0;
-        }
-        int n = emos.size();
-        double sumIJ = 0.0;
-        int count = 0;
-        for (int i = 0; i < n; i++) {
-            EmotionType t1 = emos.get(i).getTipoBase();
-            for (int j = i + 1; j < n; j++) {
-                EmotionType t2 = emos.get(j).getTipoBase();
-                double p12 = matrix.getPeso(t1, t2);
-                double p21 = matrix.getPeso(t2, t1);
-                sumIJ += (p12 + p21) / 2.0;
-                count++;
-            }
-        }
-        double mediaInterna = (count > 0) ? (sumIJ / count) : 1.0;
-        double factor = 1.0 + (mediaInterna - 1.0) * 0.5;
-        if (factor < 0.75) factor = 0.75;
-        if (factor > 1.25) factor = 1.25;
-        return factor;
-    }
-    
-    // -----------------------------
-    //  Método auxiliar para penalizar combinaciones “antagónicas” específicas
-    // -----------------------------
-    private static double aplicarPenalizacionesAntagonistas(List<EmotionInstance> emos) {
-        // Definimos un mapa de antagonismos: si aparece clave → valores, se aplica penalización.
-        // (ajusta según tu diseño de juego)
-        Map<EmotionType, List<EmotionType>> antagonismos = Map.of(
-            EmotionType.IRA, List.of(EmotionType.TRISTEZA, EmotionType.MIEDO),
-            EmotionType.TRISTEZA, List.of(EmotionType.ALEGRIA),
-            EmotionType.MIEDO, List.of(EmotionType.RABIA)
-            // ... añade más reglas según la temática
-        );
+			effectMap.merge(type, detail,
+					(existing, incoming) -> new EffectDetail(type, existing.getIntensidad() + incoming.getIntensidad(),
+							Math.max(existing.getProbabilidad(), incoming.getProbabilidad()),
+							Math.max(existing.getRemainingTurns(), incoming.getRemainingTurns())));
+		});
 
-        double penal = 1.0;
-        for (int i = 0; i < emos.size(); i++) {
-            EmotionType t1 = emos.get(i).getTipoBase();
-            for (int j = i + 1; j < emos.size(); j++) {
-                EmotionType t2 = emos.get(j).getTipoBase();
-                // Si (t1→t2) o (t2→t1) está en antagonismos, reducimos en 10%
-                if ( antagonismos.getOrDefault(t1, List.of()).contains(t2)
-                  || antagonismos.getOrDefault(t2, List.of()).contains(t1)) {
-                    penal *= 0.9;
-                }
-            }
-        }
-        // Nos aseguramos que no baje de 0.75
-        return Math.max(0.75, penal);
-    }
+		return new ArrayList<>(effectMap.values());
+	}
+
+	/**
+	 * Aplica un factor de compatibilidad a las intensidades de todos los efectos.
+	 */
+	private static List<EffectDetail> applyCompatibilityFactor(List<EffectDetail> effects, double factor) {
+
+		return effects.stream().map(ed -> new EffectDetail(ed.getTipo(), ed.getIntensidad() * factor,
+				ed.getProbabilidad(), ed.getRemainingTurns())).collect(Collectors.toList());
+	}
+
+	// ==================== DETECCIÓN DE TIPO DOMINANTE ====================
+
+	/**
+	 * Detecta el tipo base dominante entre múltiples emociones. Usa scoring basado
+	 * en pesos de la matriz de dominancia.
+	 */
+	private static EmotionType detectarTipoBaseMultiple(List<EmotionInstance> emotions) {
+		Map<EmotionType, Double> scores = initializeScoreMap();
+
+		// Acumular pesos para cada candidato
+		for (EmotionInstance emotion : emotions) {
+			EmotionType sourceType = emotion.getTipoBase();
+
+			for (EmotionType candidate : EmotionType.values()) {
+				double weight = matrix != null ? matrix.getPeso(sourceType, candidate) : 1.0;
+
+				scores.merge(candidate, weight, Double::sum);
+			}
+		}
+
+		// Normalizar por cantidad de emociones
+		int n = emotions.size();
+		scores.replaceAll((type, score) -> score / n);
+
+		// Retornar el tipo con mayor puntaje
+		return scores.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey)
+				.orElse(EmotionType.NEUTRO);
+	}
+
+	// ==================== UTILIDADES DE COLOR ====================
+
+	/**
+	 * Mezcla múltiples colores promediando sus componentes RGB.
+	 */
+	private static String mixColors(List<String> hexColors) {
+		if (hexColors.isEmpty()) {
+			return "#808080"; // Gris por defecto
+		}
+
+		float rSum = 0, gSum = 0, bSum = 0;
+
+		for (String hex : hexColors) {
+			Color color = Color.decode(hex);
+			rSum += color.getRed();
+			gSum += color.getGreen();
+			bSum += color.getBlue();
+		}
+
+		int n = hexColors.size();
+
+		return String.format("#%02X%02X%02X", Math.min(255, Math.round(rSum / n)), Math.min(255, Math.round(gSum / n)),
+				Math.min(255, Math.round(bSum / n)));
+	}
+
+	// ==================== HELPERS Y VALIDACIONES ====================
+
+	private static void validateMatrix() {
+		if (matrix == null) {
+			throw new IllegalStateException(
+					"La matriz de dominancia no ha sido inicializada. " + "Llama a setDominanceMatrix() primero.");
+		}
+	}
+
+	private static void validateEmotions(EmotionInstance e1, EmotionInstance e2) {
+		if (e1 == null || e2 == null) {
+			throw new IllegalArgumentException("Las emociones no pueden ser null");
+		}
+	}
+
+	private static void validateMultipleEmotions(List<EmotionInstance> emotions) {
+		if (emotions == null || emotions.size() < 2) {
+			throw new IllegalArgumentException("Se requieren al menos dos emociones para fusionar");
+		}
+
+		if (emotions.stream().anyMatch(Objects::isNull)) {
+			throw new IllegalArgumentException("La lista contiene emociones null");
+		}
+	}
+
+	private static double calculateAverageWeight(EmotionType t1, EmotionType t2) {
+		double w12 = matrix.getPeso(t1, t2);
+		double w21 = matrix.getPeso(t2, t1);
+		return (w12 + w21) / 2.0;
+	}
+
+	private static double clampFactor(double factor) {
+		return Math.max(MIN_COMPATIBILITY_FACTOR, Math.min(MAX_COMPATIBILITY_FACTOR, factor));
+	}
+
+	private static String buildMultiFusionKey(List<EmotionInstance> emotions) {
+		return emotions.stream().map(EmotionInstance::getId).sorted().collect(Collectors.joining(FUSION_KEY_SEPARATOR));
+	}
+
+	private static Map<EmotionType, Double> initializeScoreMap() {
+		Map<EmotionType, Double> scores = new LinkedHashMap<>();
+		for (EmotionType type : EmotionType.values()) {
+			scores.put(type, 0.0);
+		}
+		return scores;
+	}
+
+	private static Map<EmotionType, List<EmotionType>> buildAntagonismMap() {
+		Map<EmotionType, List<EmotionType>> antagonisms = new HashMap<>();
+		antagonisms.put(EmotionType.IRA, Arrays.asList(EmotionType.TRISTEZA, EmotionType.MIEDO));
+		antagonisms.put(EmotionType.TRISTEZA, Collections.singletonList(EmotionType.ALEGRIA));
+		antagonisms.put(EmotionType.MIEDO, Collections.singletonList(EmotionType.RABIA));
+		return antagonisms;
+	}
+
+	private static boolean areAntagonistic(EmotionType t1, EmotionType t2,
+			Map<EmotionType, List<EmotionType>> antagonisms) {
+
+		return antagonisms.getOrDefault(t1, Collections.emptyList()).contains(t2)
+				|| antagonisms.getOrDefault(t2, Collections.emptyList()).contains(t1);
+	}
 }

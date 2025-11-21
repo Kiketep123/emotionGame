@@ -24,6 +24,4 @@ public abstract class AbstractTimedEffect implements TimedEffect {
         // Por defecto no hace nada cada turno; las subclases pueden sobrescribir esto si lo necesitan
     }
 
-    @Override
-    public abstract String getNombre();
 }

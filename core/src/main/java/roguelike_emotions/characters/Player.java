@@ -1,453 +1,544 @@
 package roguelike_emotions.characters;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import roguelike_emotions.effects.AbstractTimedEffect;
+import roguelike_emotions.combat.CombatEntity;
+import roguelike_emotions.combat.EmotionalTurnProcessor;
 import roguelike_emotions.effects.Buff;
 import roguelike_emotions.effects.Debuff;
 import roguelike_emotions.effects.EffectDetail;
 import roguelike_emotions.effects.OverTimeHeal;
 import roguelike_emotions.mainMechanics.EmotionInstance;
 import roguelike_emotions.mainMechanics.EmotionInstanceFactory;
-import roguelike_emotions.mainMechanics.EmotionType;
 import roguelike_emotions.map.EmotionNode;
 import roguelike_emotions.utils.CombatLogger;
-import roguelike_emotions.utils.MultiEmotionSynergyManager;
-import roguelike_emotions.utils.SynergyEffect;
 
-public class Player implements Cloneable {
-	// --- Stats base ---
-	private int vida = 100;
-	private int veneno = 0;
-	private int defensaBase = 50;
-	private int danyoBase = 15;
-	private double velBase = 10;
+/**
+ * Clase Player adaptada para implementar CombatEntity.
+ * Mantiene toda la funcionalidad original + sistema unificado de combate.
+ */
+public class Player implements CombatEntity, Cloneable {
 
-	// --- Emociones activas ---
-	private List<EmotionInstance> emocionesActivas = new ArrayList<>();
-	private EmotionNode nodoMentalActual;
+    // ==================== ATRIBUTOS EXISTENTES ====================
 
-	// --- Buffs y Debuffs ---
-	private Map<String, Buff> activeBuffs = new HashMap<>();
-	private Map<String, Debuff> activeDebuffs = new HashMap<>();
+    private int vida = 100;
+    private int maxVida = 100;
+    private int veneno = 0;
+    private int defensaBase = 25;
+    private int danyoBase = 50;
+    private double velBase = 10;
 
-	// --- Heal-over-time (HoT) effects ---
-	private List<OverTimeHeal> healOverTimeEffects = new ArrayList<>();
-	private List<EffectDetail> efectosActivos = new ArrayList<>();
-	private EmotionInstanceFactory emotionFactory = new EmotionInstanceFactory();
-	/** Enemigo que nos ha provocado (taunt) */
+    // Emociones
+    private List<EmotionInstance> emocionesActivas = new ArrayList<>();
+    private EmotionNode nodoMentalActual;
 
-	private Enemy tauntSource;
-	private int tauntTurnsRemaining = 0;
+    // Efectos
+    private Map<String, Buff> activeBuffs = new HashMap<>();
+    private Map<String, Debuff> activeDebuffs = new HashMap<>();
+    private List<OverTimeHeal> healOverTimeEffects = new ArrayList<>();
+    private List<EffectDetail> efectosActivos = new ArrayList<>();
 
-	// --- Manejo de emociones ---
-	public void añadirEmocion(EmotionInstance e) {
-		if (e != null && !emocionesActivas.contains(e)) {
-			emocionesActivas.add(e);
-			for (EffectDetail ed : e.getEfectos()) {
-				efectosActivos.add(EffectDetail.fromConfig(ed.getTipo()));
-			}
-		}
-	}
+    // Factory y taunt
+    private EmotionInstanceFactory emotionFactory = new EmotionInstanceFactory();
+    private Enemy tauntSource;
+    private int tauntTurnsRemaining = 0;
 
-	public void setDefensaBase(int defensaBase) {
-		this.defensaBase = defensaBase;
-	}
+    // Habilidades (para compatibilidad con CombatEntity)
+    private boolean canUseAbility = true;
+    private int abilityCooldown = 0;
 
-	public Map<String, Buff> getActiveBuffs() {
-		return activeBuffs;
-	}
+    // ==================== IMPLEMENTACIÓN DE CombatEntity ====================
 
-	public void setActiveBuffs(Map<String, Buff> activeBuffs) {
-		this.activeBuffs = activeBuffs;
-	}
+    @Override
+    public String getNombre() {
+        return "Player"; // o añade un campo 'nombre' si lo necesitas
+    }
 
-	public Map<String, Debuff> getActiveDebuffs() {
-		return activeDebuffs;
-	}
+    @Override
+    public EntityType getEntityType() {
+        return EntityType.PLAYER;
+    }
 
-	public void setActiveDebuffs(Map<String, Debuff> activeDebuffs) {
-		this.activeDebuffs = activeDebuffs;
-	}
+    @Override
+    public int getHealth() {
+        return vida;
+    }
 
-	public List<OverTimeHeal> getHealOverTimeEffects() {
-		return healOverTimeEffects;
-	}
+    @Override
+    public void setHealth(int health) {
+        this.vida = Math.max(0, Math.min(health, maxVida));
+    }
 
-	public void setHealOverTimeEffects(List<OverTimeHeal> healOverTimeEffects) {
-		this.healOverTimeEffects = healOverTimeEffects;
-	}
+    @Override
+    public int getMaxHealth() {
+        return maxVida;
+    }
 
-	public List<EffectDetail> getEfectosActivos() {
-		return efectosActivos;
-	}
+    public void setMaxHealth(int maxHealth) {
+        this.maxVida = Math.max(1, maxHealth);
+        this.vida = Math.min(this.vida, this.maxVida);
+    }
 
-	public void eliminarEmocion(EmotionInstance e) {
-		emocionesActivas.remove(e);
-	}
+    @Override
+    public int getBaseDamage() {
+        return danyoBase;
+    }
 
-	public List<EmotionInstance> getEmocionesActivas() {
-		return Collections.unmodifiableList(emocionesActivas);
-	}
+    @Override
+    public void setBaseDamage(int damage) {
+        this.danyoBase = Math.max(0, damage);
+    }
 
-	public void modifySpeed(double multiplier, int duration) {
-		velBase = Math.max(0.1, velBase * multiplier);
-		CombatLogger.get().log("[Player] Velocidad ajustada " + multiplier + "→" + velBase);
-	}
+    @Override
+    public int getBaseDefense() {
+        return defensaBase;
+    }
 
-	// --- Llamadas de los EffectDetail via reflection ---
-	public void curar(int cantidad) {
-		vida += cantidad;
-		CombatLogger.get().log("[Player] +" + cantidad + " vida → " + vida);
-	}
+    @Override
+    public void setBaseDefense(int defense) {
+        this.defensaBase = Math.max(0, defense);
+    }
 
-	public void intoxicar(int nivel) {
-		veneno += nivel;
-		CombatLogger.get().log("[Player] +" + nivel + " veneno → " + veneno);
-	}
+    @Override
+    public int getSpeed() {
+        return (int) velBase;
+    }
 
-	public void defender(int nivel) {
-		defensaBase += nivel;
-		CombatLogger.get().log("[Player] +" + nivel + " defensa → " + defensaBase);
-	}
+    @Override
+    public void setSpeed(int speed) {
+        this.velBase = Math.max(1, speed);
+    }
 
-	public void applyBuff(String type, double multiplier, int duration) {
-		activeBuffs.put(type, new Buff(type, multiplier, duration));
-		CombatLogger.get()
-				.log("[Player] Buff " + type + "  con mutilipicador " + multiplier + " por " + duration + " turnos");
-	}
+    @Override
+    public List<EmotionInstance> getEmocionesActivas() {
+        return emocionesActivas;
+    }
 
-	public void applyDebuff(String type, double multiplier, int duration) {
-		activeDebuffs.put(type, new Debuff(type, multiplier, duration));
-		CombatLogger.get().log("[Player] Debuff " + type + " por " + duration + " turnos");
-	}
+    @Override
+    public void addEmocion(EmotionInstance emotion) {
+        añadirEmocion(emotion);
+    }
 
-	public void applyHealOverTime(int amount, int turns) {
-		healOverTimeEffects.add(new OverTimeHeal(amount, turns));
-		CombatLogger.get().log("[Player] Curación continua " + amount + " por " + turns + " turnos");
-	}
+    @Override
+    public void removeEmocion(EmotionInstance emotion) {
+        eliminarEmocion(emotion);
+    }
 
-	// --- Tick de todos los efectos cada turno ---
-	public void tickTurnoEmocional() {
-		// 1) Efectos data-driven
-		Iterator<EffectDetail> eit = efectosActivos.iterator();
-		while (eit.hasNext()) {
-			EffectDetail ed = eit.next();
-			if (Math.random() < ed.getProbabilidad()) {
-				ed.aplicarA(this);
-			}
-			ed.reducirDuracion(1);
-			if (ed.haExpirado()) {
-				eit.remove();
-				CombatLogger.get().log("[Player] Efecto " + ed.getTipo() + " expirado");
-			}
-		}
+    @Override
+    public void clearEmociones() {
+        emocionesActivas.clear();
+        efectosActivos.clear();
+    }
 
-		// 2) Heal-over-time
-		Iterator<OverTimeHeal> hotIt = healOverTimeEffects.iterator();
-		while (hotIt.hasNext()) {
-			OverTimeHeal hot = hotIt.next();
-			vida += hot.getAmount();
-			CombatLogger.get().log("[Player] HoT +" + hot.getAmount() + " vida → " + vida);
-			// Aquí usamos reduceTurns() y getRemainingTurns()
-			hot.reducirDuracion();
-			if (hot.getRemainingTurns() <= 0) {
-				hotIt.remove();
-			}
-		}
+    @Override
+    public List<EffectDetail> getEfectosActivos() {
+        return efectosActivos;
+    }
 
-		// 3) Buffs
-		tickTurnBasedEffects(activeBuffs, "Buff");
+    @Override
+    public List<OverTimeHeal> getHealOverTimeEffects() {
+        return healOverTimeEffects;
+    }
 
-		// 4) Debuffs
-		tickTurnBasedEffects(activeDebuffs, "Debuff");
+    @Override
+    public Map<String, Buff> getActiveBuffs() {
+        return activeBuffs;
+    }
 
-		// 5) Veneno
-		if (veneno > 0) {
-			vida -= veneno;
-			CombatLogger.get().log("[Player] Veneno -" + veneno + " vida → " + vida);
-		}
-		// 6) Taunt
-		if (tauntSource != null) {
-			tauntTurnsRemaining--;
-			if (tauntTurnsRemaining <= 0 || !tauntSource.isAlive()) {
-				CombatLogger.get().log("[Player] Ya no estás bajo Provocación.");
-				tauntSource = null;
-				tauntTurnsRemaining = 0;
-			}
-		}
+    @Override
+    public Map<String, Debuff> getActiveDebuffs() {
+        return activeDebuffs;
+    }
 
-		// ————————————————————————————————
-		// 7) Sinergias contextuales entre emociones activas
-		// En lugar de mutar danyoBase, defensaBase o velBase de forma permanente,
-		// aqui creamos Buffs temporales de 1 turno con los multiplicadores de sinergía.
-		List<EmotionType> tiposActivos = new ArrayList<>();
-		for (EmotionInstance ei : emocionesActivas) {
-			tiposActivos.add(ei.getTipoBase());
-		}
+    @Override
+    public boolean isAlive() {
+        return vida > 0;
+    }
 
-		List<SynergyEffect> sinergias = MultiEmotionSynergyManager.getSynergies(tiposActivos);
-		for (SynergyEffect se : sinergias) {
-			// 7a) Buff temporal de daño
-			if (se.getDamageMultiplier() != 1.0) {
-				activeBuffs.put("damageBoost", new Buff("damageBoost", se.getDamageMultiplier(), 1));
-			}
+    @Override
+    public boolean isStunned() {
+        return activeDebuffs.containsKey("stun") ||
+               activeDebuffs.containsKey("Stun") ||
+               activeDebuffs.containsKey("aturdimiento");
+    }
 
-			// 7b) Buff temporal de defensa
-			if (se.getDefenseMultiplier() != 1.0) {
-				activeBuffs.put("defenseBoost", new Buff("defenseBoost", se.getDefenseMultiplier(), 1));
-			}
+    @Override
+    public boolean canAct() {
+        return isAlive() && !isStunned();
+    }
 
-			// 7c) Buff temporal de velocidad
-			if (se.getSpeedMultiplier() != 1.0) {
-				activeBuffs.put("speedBoost", new Buff("speedBoost", se.getSpeedMultiplier(), 1));
-			}
+    @Override
+    public int takeDamage(int amount) {
+        int actualDamage = Math.min(amount, vida);
+        vida -= actualDamage;
+        return actualDamage;
+    }
 
-			// 7d) Curación continua adicional (HoT)
-			if (se.getHotAmount() > 0 && se.getHotTurns() > 0) {
-				healOverTimeEffects.add(new OverTimeHeal(se.getHotAmount(), se.getHotTurns()));
-			}
+    @Override
+    public void heal(int amount) {
+        vida = Math.min(vida + amount, maxVida);
+    }
 
-			// 7e) Veneno adicional (genera un EffectDetail que aplica "intoxicar" vía JSON)
-			if (se.getPoisonAmount() > 0 && se.getPoisonTurns() > 0) {
-				EffectDetail poisonDetail = new EffectDetail(
-						/* tipo */ roguelike_emotions.mainMechanics.EmotionEffect.VENENO,
-						/* intensidad */ se.getPoisonAmount(), /* probabilidad */1.0,
-						/* duración */ se.getPoisonTurns());
-				efectosActivos.add(poisonDetail);
-			}
+    @Override
+    public boolean canUseActive() {
+        return canUseAbility;
+    }
 
-			// 7f) Stun adicional (genera un EffectDetail que aplica
-			// "applyDebuff(\"stun\",1)" vía JSON)
-			if (se.getStunTurns() > 0) {
-				EffectDetail stunDetail = new EffectDetail(
-						/* tipo */ roguelike_emotions.mainMechanics.EmotionEffect.REBOTE, /* intensidad */ 0.0,
-						/* probabilidad */1.0, /* duración */ se.getStunTurns());
-				efectosActivos.add(stunDetail);
-			}
+    @Override
+    public void setCanUseActive(boolean canUse) {
+        this.canUseAbility = canUse;
+    }
 
-			// 7g) Buff genérico extra (ejemplo: "defenseBoost")
-			if (se.getBuffType() != null && se.getBuffTurns() > 0) {
-				activeBuffs.put(se.getBuffType(),
-						new Buff(se.getBuffType(), se.getBuffMultiplier(), se.getBuffTurns()));
-			}
+    @Override
+    public int getCooldownTurns() {
+        return abilityCooldown;
+    }
 
-			// 7h) Debuff genérico extra (ejemplo: "silence", "slow", etc.)
-			if (se.getDebuffType() != null && se.getDebuffTurns() > 0) {
-				activeDebuffs.put(se.getDebuffType(),
-						new Debuff(se.getDebuffType(), se.getBuffMultiplier(), se.getDebuffTurns()));
-			}
-		}
+    @Override
+    public void setCooldownTurns(int turns) {
+        this.abilityCooldown = Math.max(0, turns);
+    }
 
-	}
+    // ==================== MÉTODO DE TURNO REFACTORIZADO ====================
 
-	private <T extends AbstractTimedEffect> void tickTurnBasedEffects(Map<String, T> map, String label) {
-		Iterator<T> it = map.values().iterator();
-		while (it.hasNext()) {
-			T effect = it.next();
-			// resta un turno y actualiza internamente
-			if (effect.reducirDuracion()) {
-				it.remove();
-				CombatLogger.get().log("[Player] " + label + " " + effect.getNombre() + " expirado");
-			}
-		}
-	}
+    /**
+     * Procesa el turno emocional usando el sistema unificado.
+     * Mantiene compatibilidad con el método original.
+     */
+    public void tickTurnoEmocional() {
+        // Usar el sistema unificado (sin target porque el jugador procesa solo sus efectos)
+       EmotionalTurnProcessor.processTurn(this, null);
 
-	public void reduceirDebuffs(int turnos) {
-		Iterator<Debuff> it = activeDebuffs.values().iterator();
-		while (it.hasNext()) {
-			Debuff d = it.next();
-			if (d.reducirDuracion()) {
-				it.remove();
-				CombatLogger.get().log("[Player] Debuff " + d.getType() + " expirado tras taunt.");
-			}
-		}
-	}
+        // Lógica adicional específica del jugador
+        processPlayerSpecificEffects();
+    }
 
-	/**
-	 * Queda marcado este enemigo como quien provocó (taunt) al jugador.
-	 */
-	public void setTauntSource(Enemy enemigo) {
-		this.tauntSource = enemigo;
-		CombatLogger.get().log("[Player] Ha sido provocado por " + enemigo.getNombre());
-	}
+    /**
+     * Efectos específicos del jugador que no están en el sistema unificado.
+     */
+    private void processPlayerSpecificEffects() {
+        // Veneno
+        if (veneno > 0) {
+            vida -= veneno;
+            CombatLogger.get().log("[Player] Veneno -" + veneno + " vida → " + vida);
+        }
 
-	public Enemy getTauntSource() {
-		return tauntSource;
-	}
+        // Taunt
+        if (tauntSource != null) {
+            tauntTurnsRemaining--;
+            if (tauntTurnsRemaining <= 0 || !tauntSource.isAlive()) {
+                CombatLogger.get().log("[Player] Ya no estás bajo Provocación");
+                tauntSource = null;
+                tauntTurnsRemaining = 0;
+            }
+        }
+    }
 
-	/**
-	 * Hereda un porcentaje de los "buffs" del enemigo. Aquí los interpretamos como
-	 * sus efectos emotivos activos.
-	 */
-	// --- Heredar buffs de un enemigo (ratio: 0.5 = hereda 50% del multiplicador)
-	// ---
-	public void inheritBuffsFrom(Enemy fuente, double ratio) {
-		// Por cada buff del enemigo, copiamos al jugador con multiplicador*ratio y
-		// duración igual
-		for (Map.Entry<String, ?> en : fuente.getActiveBuffs().entrySet()) {
-			String type = en.getKey();
-			Buff buffEne = (Buff) en.getValue();
-			double mult = buffEne.getMultiplier();
-			int turns = buffEne.getRemainingTurns();
-			applyBuff(type, mult * ratio, turns);
-		}
-		CombatLogger.get().log("[Player] Hereda buffs de " + fuente.getNombre() + "(ratio " + ratio + ")");
-	}
+    // ==================== MÉTODOS ORIGINALES DE EMOCIONES ====================
 
-	// --- Getters de stats finales ---
-	public int getDanyo() {
-		double dmg = danyoBase;
-		Buff b = activeBuffs.get("damageBoost");
-		if (b != null)
-			dmg *= b.getMultiplier();
-		return (int) Math.max(1, dmg);
-	}
+    /**
+     * Añade una emoción al jugador (método original).
+     */
+    public void añadirEmocion(EmotionInstance e) {
+        if (e != null && !emocionesActivas.contains(e)) {
+            emocionesActivas.add(e);
+            for (EffectDetail ed : e.getEfectos()) {
+                efectosActivos.add(EffectDetail.fromConfig(ed.getTipo()));
+            }
+        }
+    }
 
-	public int getDefensa() {
-		double def = defensaBase;
-		Buff b = activeBuffs.get("defenseBoost");
-		if (b != null)
-			def *= b.getMultiplier();
-		return (int) Math.max(0, def);
-	}
+    public void eliminarEmocion(EmotionInstance e) {
+        emocionesActivas.remove(e);
+    }
 
-	public double getVelocidad() {
-		double vel = velBase;
-		// Buff de tipo "speedBoost"
-		Buff b = activeBuffs.get("speedBoost");
-		if (b != null) {
-			vel *= b.getMultiplier();
-		}
-		return Math.max(0.1, vel);
-	}
+    public void usarEmocion(EmotionInstance emocion) {
+        if (!emocionesActivas.contains(emocion)) {
+            CombatLogger.get().log(
+                "[Player] Emoción no disponible: " + emocion.getNombre()
+            );
+            return;
+        }
 
-	public int getVida() {
-		return vida;
-	}
+        for (EffectDetail ed : emocion.getEfectos()) {
+            ed.aplicarA(this);
+            efectosActivos.add(new EffectDetail(
+                ed.getTipo(),
+                ed.getIntensidad(),
+                ed.getProbabilidad(),
+                ed.getRemainingTurns()
+            ));
+            CombatLogger.get().log(
+                "[Player] Aplica efecto de emoción: " + ed.getNombre()
+            );
+        }
+    }
 
-	public int getVeneno() {
-		return veneno;
-	}
+    // ==================== MÉTODOS DE EFECTOS ====================
 
-	public boolean isAlive() {
-		return vida > 0;
-	}
+    public void curar(int cantidad) {
+        vida += cantidad;
+        CombatLogger.get().log("[Player] +" + cantidad + " vida → " + vida);
+    }
 
-	public void recibirDanyo(int cantidad) {
-		int neto;
-		int defensaBase = getDefensa();
-		if (getDefensa() > 0) {
-			if (cantidad <= defensaBase) {
-				setDefensaBase(defensaBase - cantidad);
-				neto = 0;
-			} else {
-				neto = cantidad - defensaBase;
-				setDefensaBase(0);
-			}
-		} else {
-			neto = cantidad;
-		}
+    public void intoxicar(int nivel) {
+        veneno += nivel;
+        CombatLogger.get().log("[Player] +" + nivel + " veneno → " + veneno);
+    }
 
-		vida = Math.max(0, vida - neto);
+    public void defender(int nivel) {
+        defensaBase += nivel;
+        CombatLogger.get().log("[Player] +" + nivel + " defensa → " + defensaBase);
+    }
 
-		CombatLogger.get().log(
-				"[Player] Recibe " + neto + " de daño. Vida restante: " + vida + " Defensa restante: " + getDefensa());
-	}
+    public void modifySpeed(double multiplier) {
+        velBase = Math.max(0.1, velBase * multiplier);
+        CombatLogger.get().log(
+            "[Player] Velocidad ajustada " + multiplier + " → " + velBase
+        );
+    }
 
-	// --- Método de ataque (se llama desde la UI o GameLoop) ---
-	public void attack(Enemy enemigo) {
-		// Forzar taunt: si tauntSource != null, solo puedo atacar a ese enemigo
-		if (tauntSource != null && enemigo != tauntSource) {
-			CombatLogger.get().log("[Player] Taunt activo: debes atacar a " + tauntSource.getNombre() + ".");
-			return;
-		}
+    public void applyBuff(String type, double multiplier, int duration) {
+        activeBuffs.put(type, new Buff(type, multiplier, duration));
+        CombatLogger.get().log(
+            "[Player] Buff " + type + " con multiplicador " +
+            multiplier + " por " + duration + " turnos"
+        );
+    }
 
-		int damage = getDanyo();
-		CombatLogger.get().log("[Player] Ataca a "+enemigo.getNombre()+" haciendo "+damage+" daño base.");
+    public void applyDebuff(String type, double multiplier, int duration) {
+        activeDebuffs.put(type, new Debuff(type, multiplier, duration));
+        CombatLogger.get().log(
+            "[Player] Debuff " + type + " por " + duration + " turnos"
+        );
+    }
 
-		// Crear Attack, trasladar mis datos data-driven (EffectDetail) al ataque
-		Attack atk = new Attack();
-		for (EffectDetail ed : efectosActivos) {
-			// Creamos copia manual (no usamos clone())
-			EffectDetail copia = new EffectDetail(ed.getTipo(), ed.getIntensidad(), ed.getProbabilidad(),
-					ed.getRemainingTurns());
-			atk.addEffect(copia);
-		}
-		atk.applyToEnemy(enemigo, damage);
-	}
+    public void applyHealOverTime(int amount, int turns) {
+        healOverTimeEffects.add(new OverTimeHeal(amount, turns));
+        CombatLogger.get().log(
+            "[Player] Curación continua " + amount + " por " + turns + " turnos"
+        );
+    }
 
-	// --- Reset completo del estado del jugador (al reiniciar oleada o juego) ---
-	public void resetState() {
-		vida = 100;
-		veneno = 0;
-		defensaBase = 50;
-		danyoBase = 10;
-		velBase = 10.0;
-		emocionesActivas.clear();
-		efectosActivos.clear();
-		activeBuffs.clear();
-		activeDebuffs.clear();
-		healOverTimeEffects.clear();
-		tauntSource = null;
-		tauntTurnsRemaining = 0;
-		EmotionInstance emocionInicial = emotionFactory.generarProcedural();
-		añadirEmocion(emocionInicial);
-	}
+    // ==================== MÉTODOS DE COMBATE ====================
 
-	/**
-	 * Aplica un debuff de tipo "taunt" que fuerza al atacante a centrarse en este
-	 * turno.
-	 *
-	 * @param turns número de turnos que dura el taunt
-	 */
-	// --- Taunt-related ---
-	public void applyTaunt(int duration, Enemy source) {
-		this.tauntSource = source;
-		this.tauntTurnsRemaining = duration;
-		CombatLogger.get().log("[Player] Queda taunteado por " + duration + " turnos (de " + source.getNombre() + ")");
-	}
+    /**
+     * Ataca a un enemigo (método original).
+     */
+    public void attack(Enemy enemigo) {
+        if (!canAct()) {
+            CombatLogger.get().log("[Player] No puede actuar");
+            return;
+        }
 
-	@Override
-	public Player clone() {
-		try {
-			Player copia = (Player) super.clone();
-			// Si tienes listas mutables, clónalas también:
-			copia.emocionesActivas = new ArrayList<>(this.emocionesActivas);
-			copia.efectosActivos = new ArrayList<>(this.efectosActivos);
-			copia.activeBuffs = new HashMap<>(this.activeBuffs);
-			copia.activeDebuffs = new HashMap<>(this.activeDebuffs);
-			copia.healOverTimeEffects = new ArrayList<>(this.healOverTimeEffects);
-			return copia;
-		} catch (CloneNotSupportedException ex) {
-			throw new AssertionError("No debería ocurrir");
-		}
-	}
+        int damage = getDanyo();
 
-	public EmotionNode getNodoMentalActual() {
-		return nodoMentalActual;
-	}
+        // Forzar taunt
+        if (tauntSource != null && enemigo != tauntSource) {
+            CombatLogger.get().log(
+                "[Player] Taunt activo: debes atacar a " +
+                tauntSource.getNombre()
+            );
+            return;
+        }
 
-	public void setNodoMentalActual(EmotionNode nodo) {
-		this.nodoMentalActual = nodo;
-	}
+        // Crear ataque con efectos
+        Attack atk = new Attack();
+        for (EffectDetail ed : efectosActivos) {
+            EffectDetail copia = new EffectDetail(
+                ed.getTipo(),
+                ed.getIntensidad(),
+                ed.getProbabilidad(),
+                ed.getRemainingTurns()
+            );
+            atk.addEffect(copia);
+        }
+        atk.applyToEnemy(enemigo, damage);
+    }
 
-	public void usarEmocion(EmotionInstance emocion) {
-		if (!emocionesActivas.contains(emocion)) {
-			CombatLogger.get().log("[Player] Emoción no disponible: " + emocion.getNombre());
-			return;
-		}
+    /**
+     * Recibe daño (método original con lógica de defensa).
+     */
+    public void recibirDanyo(int cantidad) {
+        int neto;
+        int def = getDefensa();
 
-		for (EffectDetail ed : emocion.getEfectos()) {
-			ed.aplicarA(this);
-			efectosActivos.add(
-					new EffectDetail(ed.getTipo(), ed.getIntensidad(), ed.getProbabilidad(), ed.getRemainingTurns()));
-			CombatLogger.get().log("[Player] Aplica efecto de emoción: " + ed.getNombre());
-		}
-	}
+        if (def > 0) {
+            if (cantidad <= def) {
+                defensaBase -= cantidad;
+                neto = 0;
+            } else {
+                neto = cantidad - def;
+                defensaBase = 0;
+            }
+        } else {
+            neto = cantidad;
+        }
+
+        vida = Math.max(0, vida - neto);
+
+    }
+
+    // ==================== GETTERS CON BUFFS ====================
+
+    /**
+     * Devuelve el daño real considerando buffs.
+     */
+    public int getDanyo() {
+        double dmg = danyoBase;
+        Buff b = activeBuffs.get("damageBoost");
+        if (b != null) {
+            dmg *= b.getMultiplier();
+        }
+        return (int) Math.max(1, dmg);
+    }
+
+    /**
+     * Devuelve la defensa real considerando buffs.
+     */
+    public int getDefensa() {
+        double def = defensaBase;
+        Buff b = activeBuffs.get("defenseBoost");
+        if (b != null) {
+            def *= b.getMultiplier();
+        }
+        return (int) Math.max(0, def);
+    }
+
+    /**
+     * Devuelve la velocidad real considerando buffs.
+     */
+    public double getVelocidad() {
+        double vel = velBase;
+        Buff b = activeBuffs.get("speedBoost");
+        if (b != null) {
+            vel *= b.getMultiplier();
+        }
+        return Math.max(0.1, vel);
+    }
+
+    // ==================== MÉTODOS DE TAUNT ====================
+
+    public void applyTaunt(int duration, Enemy source) {
+        this.tauntSource = source;
+        this.tauntTurnsRemaining = duration;
+        CombatLogger.get().log(
+            "[Player] Queda taunteado por " + duration +
+            " turnos (de " + source.getNombre() + ")"
+        );
+    }
+
+    public void setTauntSource(Enemy enemigo) {
+        this.tauntSource = enemigo;
+        CombatLogger.get().log(
+            "[Player] Ha sido provocado por " + enemigo.getNombre()
+        );
+    }
+
+    public Enemy getTauntSource() {
+        return tauntSource;
+    }
+
+    // ==================== MÉTODOS DE HERENCIA DE BUFFS ====================
+
+    /**
+     * Hereda un porcentaje de los buffs de un enemigo.
+     */
+    public void inheritBuffsFrom(Enemy fuente, double ratio) {
+        for (Map.Entry<String, Buff> entry : fuente.getActiveBuffs().entrySet()) {
+            String type = entry.getKey();
+            Buff buffEnemigo = entry.getValue();
+            double mult = buffEnemigo.getMultiplier();
+            int turns = buffEnemigo.getRemainingTurns();
+            applyBuff(type, mult * ratio, turns);
+        }
+        CombatLogger.get().log(
+            "[Player] Hereda buffs de " + fuente.getNombre() +
+            " (ratio " + ratio + ")"
+        );
+    }
+
+    public void reduceirDebuffs() {
+        Iterator<Debuff> it = activeDebuffs.values().iterator();
+        while (it.hasNext()) {
+            Debuff d = it.next();
+            if (d.reducirDuracion()) {
+                it.remove();
+                CombatLogger.get().log(
+                    "[Player] Debuff " + d.getType() + " expirado tras reducción"
+                );
+            }
+        }
+    }
+
+    // ==================== GETTERS/SETTERS ADICIONALES ====================
+
+    public int getVeneno() {
+        return veneno;
+    }
+
+    public void setVeneno(int veneno) {
+        this.veneno = Math.max(0, veneno);
+    }
+
+    public EmotionNode getNodoMentalActual() {
+        return nodoMentalActual;
+    }
+
+    public void setNodoMentalActual(EmotionNode nodo) {
+        this.nodoMentalActual = nodo;
+    }
+
+    // ==================== RESET DE ESTADO ====================
+
+    /**
+     * Resetea el estado del jugador (al reiniciar oleada o juego).
+     */
+    public void resetState() {
+        vida = 100;
+        maxVida = 100;
+        veneno = 0;
+        defensaBase = 25;
+        danyoBase = 50;
+        velBase = 10.0;
+
+        emocionesActivas.clear();
+        efectosActivos.clear();
+        activeBuffs.clear();
+        activeDebuffs.clear();
+        healOverTimeEffects.clear();
+
+        tauntSource = null;
+        tauntTurnsRemaining = 0;
+        canUseAbility = true;
+        abilityCooldown = 0;
+
+        // Emoción inicial
+        EmotionInstance emocionInicial = emotionFactory.generarProcedural();
+        añadirEmocion(emocionInicial);
+    }
+
+    // ==================== CLONEABLE ====================
+
+    @Override
+    public Player clone() {
+        try {
+            Player copia = (Player) super.clone();
+
+            // Clonar colecciones mutables
+            copia.emocionesActivas = new ArrayList<>(this.emocionesActivas);
+            copia.efectosActivos = new ArrayList<>(this.efectosActivos);
+            copia.activeBuffs = new HashMap<>(this.activeBuffs);
+            copia.activeDebuffs = new HashMap<>(this.activeDebuffs);
+            copia.healOverTimeEffects = new ArrayList<>(this.healOverTimeEffects);
+
+            return copia;
+        } catch (CloneNotSupportedException ex) {
+            throw new AssertionError("No debería ocurrir", ex);
+        }
+    }
 }

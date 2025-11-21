@@ -9,54 +9,45 @@ import roguelike_emotions.managers.GameManager;
 
 public class MainGame extends Game {
 
-    private static MainGame instancia; // acceso global controlado
-    private SpriteBatch batch;
-    private BitmapFont font;
-    private Player jugador;
+	private static MainGame instancia; // acceso global controlado
+	private SpriteBatch batch;
+	private BitmapFont font;
+	private Player jugador;
 
-    public MainGame() {
-        instancia = this;
-    }
+	@Override
+	public void create() {
+		batch = new SpriteBatch();
+		font = new BitmapFont();
 
-    @Override
-    public void create() {
-        batch = new SpriteBatch();
-        font = new BitmapFont();
+		// Inicializar el jugador
+		GameManager.getInstance();
+		setScreen(new roguelike_emotions.screens.TurnCombatScreen(getBatch(), getFont()));
 
-        // Inicializar el jugador
-        jugador = new Player();
-        GameManager.getInstance();
+	}
 
-    }
+	@Override
+	public void dispose() {
+		if (getScreen() != null) {
+			getScreen().dispose();
+		}
+		batch.dispose();
+		font.dispose();
+	}
 
-    @Override
-    public void render() {
-        super.render(); // delega en la pantalla actual
-    }
+	public SpriteBatch getBatch() {
+		return batch;
+	}
 
-    @Override
-    public void dispose() {
-        if (getScreen() != null) {
-            getScreen().dispose();
-        }
-        batch.dispose();
-        font.dispose();
-    }
+	public BitmapFont getFont() {
+		return font;
+	}
 
-    public SpriteBatch getBatch() {
-        return batch;
-    }
+	public static void cambiarPantalla(com.badlogic.gdx.Screen nuevaPantalla) {
+		instancia.setScreen(nuevaPantalla);
+	}
 
-    public BitmapFont getFont() {
-        return font;
-    }
-
-    public static void cambiarPantalla(com.badlogic.gdx.Screen nuevaPantalla) {
-        instancia.setScreen(nuevaPantalla);
-    }
-
-    public Player getJugador() {
-        return jugador;
-    }
+	public Player getJugador() {
+		return jugador;
+	}
 
 }

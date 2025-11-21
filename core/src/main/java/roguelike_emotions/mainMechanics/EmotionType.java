@@ -3,7 +3,7 @@ package roguelike_emotions.mainMechanics;
 import java.util.Random;
 
 public enum EmotionType {
-    IRA, MIEDO, TRISTEZA, ALEGRIA, CULPA, ESPERANZA,FUSIONADA,CALMA,RABIA;
+    IRA, MIEDO, TRISTEZA, ALEGRIA, CULPA, ESPERANZA,FUSIONADA,CALMA,RABIA,NEUTRO;
 
 	public static EmotionType random() {
 		EmotionType[] values = values();

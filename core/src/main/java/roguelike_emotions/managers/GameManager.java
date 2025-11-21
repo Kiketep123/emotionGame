@@ -2,8 +2,9 @@ package roguelike_emotions.managers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Random;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -17,127 +18,361 @@ import roguelike_emotions.mainMechanics.EmotionDominanceMatrix;
 import roguelike_emotions.mainMechanics.EmotionInstance;
 import roguelike_emotions.mainMechanics.EmotionInstanceFactory;
 import roguelike_emotions.mainMechanics.EmotionNameGenerator;
-import roguelike_emotions.map.EmotionalMap;
-import roguelike_emotions.utils.CombatLogger;
 import roguelike_emotions.utils.EmotionCombiner;
 
+/**
+ * Gestor principal del juego - Coordinador de subsistemas. Responsabilidad
+ * única: Orquestar los diferentes managers y mantener el estado del juego.
+ */
 public class GameManager {
 
+	private static GameManager instance;
 
-	private static GameManager instancia;
-	private BitmapFont font;
-	private SpriteBatch batch;
-	private Skin skin;
-	private Stage stage;
+	// Subsistemas especializados
+	private final EmotionManager emotionManager;
+	private final CombatManager combatManager;
+	private final VisualManager visualManager;
+	private final WaveManager waveManager;
+
+	// Estado del juego
+	private final GameState gameState;
+
+	private GameManager() {
+		this.gameState = new GameState();
+		this.emotionManager = new EmotionManager(gameState);
+		this.visualManager = new VisualManager();
+		this.combatManager = new CombatManager();
+		this.waveManager = new WaveManager(gameState);
+
+		initialize();
+	}
 
 	public static GameManager getInstance() {
-		if (instancia == null) {
-			instancia = new GameManager();
+		if (instance == null) {
+			instance = new GameManager();
 		}
-		return instancia;
+		return instance;
 	}
 
-	// ---------------------------
-	// Estado del juego
-	// ---------------------------
+	/**
+	 * Reinicia completamente el estado del juego
+	 */
+	public void reset() {
+		gameState.reset();
+		emotionManager.reset();
+		waveManager.createWave(1 + new Random().nextInt(10));
+	}
 
-	private final EmotionDominanceMatrix dominanceMatrix = new EmotionDominanceMatrix();
-	private final EmotionCodex codex = new EmotionCodex(dominanceMatrix);
-	private final List<EmotionInstance> emocionesBase = new ArrayList<>();
-	private final EmotionInstanceFactory factory = new EmotionInstanceFactory();
-	private final Player player = new Player();
-	private final EnemyFactory enemyFactory;
-	private List<Enemy> enemigos = new ArrayList<>();
-	private EmotionalMap mapa;
-
-	// Constructor privado para el singleton
-	private GameManager() {
-		player.resetState();
+	private void initialize() {
+		gameState.getPlayer().resetState();
 		EmotionNameGenerator.resetTracking();
-		EmotionCombiner.setDominanceMatrix(dominanceMatrix);
-		Enemy.setDominanceMatrix(dominanceMatrix);
-		initVisual();
-		enemyFactory = new EnemyFactory();
-	    mapa = new EmotionalMap(10, enemyFactory, dominanceMatrix);
-
-		for (int i = 0; i < 5; i++) {
-			emocionesBase.add(factory.generarProcedural());
-		}
+		waveManager.createWave(1 + new Random().nextInt(4));
+		emotionManager.generateInitialEmotions(2);
 	}
 
+	// ========== Delegación a Emotion Manager ==========
 
-
-	public List<EmotionInstance> getEmocionesBase() {
-		return new ArrayList<>(emocionesBase);
+	public List<EmotionInstance> getBaseEmotions() {
+		return emotionManager.getBaseEmotions();
 	}
 
 	public List<EmotionInstance> getCodexEntries() {
-		return codex.getEntries();
+		return emotionManager.getCodexEntries();
 	}
 
-	public EmotionInstance fusionar(EmotionInstance e1, EmotionInstance e2) {
-		EmotionInstance fusion = EmotionCombiner.combinar(e1, e2);
-		codex.registrar(fusion);
-		return fusion;
+	public EmotionInstance fuseEmotions(EmotionInstance e1, EmotionInstance e2) {
+		return emotionManager.fuse(e1, e2);
 	}
 
-	public EmotionInstance fusionarVarias(List<EmotionInstance> seleccion) {
-		if (seleccion == null || seleccion.size() < 2) {
-			throw new IllegalArgumentException("Debes seleccionar al menos 2 emociones para fusionar.");
+	public EmotionInstance fuseMultipleEmotions(List<EmotionInstance> emotions) {
+		if (emotions == null || emotions.size() < 2) {
+			throw new IllegalArgumentException("Se requieren al menos 2 emociones para fusionar");
 		}
-		EmotionInstance fusion = EmotionCombiner.combinarMultiples(seleccion);
-		codex.registrar(fusion);
-		return fusion;
+		return emotionManager.fuseMultiple(emotions);
 	}
 
 	public EmotionDominanceMatrix getDominanceMatrix() {
-		return dominanceMatrix;
+		return emotionManager.getDominanceMatrix();
 	}
 
-	public void clearEmocionesBase() {
-		emocionesBase.clear();
-		codex.clear();
+	public EmotionCodex getCodex() {
+		return emotionManager.getCodex();
+	}
+
+	// ========== Delegación a Combat Manager ==========
+	public CombatResult executeCombatRound(Player player, List<Enemy> enemies, String actionLabel, Enemy target) {
+		return combatManager.executeRound(player, enemies, PlayerAction.fromString(actionLabel), target);
+	}
+
+	// ========== Delegación a Wave Manager ==========
+
+	public List<Enemy> createWave(int enemyCount) {
+		return waveManager.createWave(enemyCount);
+	}
+
+	public List<Enemy> getEnemies() {
+		return waveManager.getEnemies();
+	}
+
+	// ========== Delegación a Visual Manager ==========
+
+	public BitmapFont getFont() {
+		return visualManager.getFont();
+	}
+
+	public SpriteBatch getBatch() {
+		return visualManager.getBatch();
+	}
+
+	public Skin getSkin() {
+		return visualManager.getSkin();
+	}
+
+	public Stage getStage() {
+		return visualManager.getStage();
+	}
+
+	// ========== Acceso al estado del juego ==========
+
+	public Player getPlayer() {
+		return gameState.getPlayer();
+	}
+
+	// ========== Métodos de compatibilidad (deprecated) ==========
+
+	/**
+	 * Para testing - permite inyectar una instancia mock
+	 */
+	static void setInstance(GameManager mockInstance) {
+		instance = mockInstance;
+	}
+
+	/**
+	 * Para testing - resetea el singleton
+	 */
+	static void clearInstance() {
+		instance = null;
+	}
+
+}
+// ============================================================
+// CLASES AUXILIARES
+// ============================================================
+
+/**
+ * Enumeración de acciones posibles del jugador
+ */
+enum PlayerAction {
+	ATTACK, DEFEND, USE_EMOTION;
+
+	public static PlayerAction fromString(String action) {
+		if (action == null)
+			return ATTACK;
+
+		String normalized = action.trim().toLowerCase(Locale.ROOT);
+		return switch (normalized) {
+		case "atacar", "attack" -> ATTACK;
+		case "defender", "defend" -> DEFEND;
+		case "usaremocion", "useemotion", "emotion" -> USE_EMOTION;
+		default -> ATTACK; // Default seguro
+		};
+	}
+}
+
+/**
+ * Encapsula el estado global del juego
+ */
+class GameState {
+	private final Player player;
+	private final EmotionInstanceFactory emotionFactory;
+	private final EmotionDominanceMatrix dominanceMatrix;
+
+	public GameState() {
+		this.player = new Player();
+		this.dominanceMatrix = new EmotionDominanceMatrix();
+		this.emotionFactory = new EmotionInstanceFactory();
+
+		// Configuración de dependencias estáticas (mejorable con DI)
+		EmotionCombiner.setDominanceMatrix(dominanceMatrix);
+		Enemy.setDominanceMatrix(dominanceMatrix);
+
+	}
+
+	public void reset() {
+		player.resetState();
 		dominanceMatrix.reset();
-	}
-
-	public void resetEmocionesBase() {
-		emocionesBase.clear();
-		for (int i = 0; i < 5; i++) {
-			emocionesBase.add(factory.generarProcedural());
-		}
+		EmotionNameGenerator.resetTracking();
 	}
 
 	public Player getPlayer() {
 		return player;
 	}
 
-	public List<Enemy> crearOleada(int n) {
-		enemigos = enemyFactory.generarEnemigos(n, dominanceMatrix);
-		return enemigos;
+	public EmotionInstanceFactory getEmotionFactory() {
+		return emotionFactory;
 	}
 
-	public List<Enemy> getEnemigos() {
-		return enemigos;
+	public EmotionDominanceMatrix getDominanceMatrix() {
+		return dominanceMatrix;
+	}
+}
+
+/**
+ * Gestor especializado en emociones
+ */
+class EmotionManager {
+	private final EmotionCodex codex;
+	private final List<EmotionInstance> baseEmotions;
+	private final EmotionInstanceFactory factory;
+	private final EmotionDominanceMatrix dominanceMatrix;
+
+	public EmotionManager(GameState gameState) {
+		this.dominanceMatrix = gameState.getDominanceMatrix();
+		this.codex = new EmotionCodex(dominanceMatrix);
+		this.baseEmotions = new ArrayList<>();
+		this.factory = gameState.getEmotionFactory();
 	}
 
-	public EmotionInstanceFactory getEmotionInstanceFactory() {
-		return factory;
+	public void generateInitialEmotions(int count) {
+		baseEmotions.clear();
+		for (int i = 0; i < count; i++) {
+			baseEmotions.add(factory.generarProcedural());
+		}
+	}
+
+	public EmotionInstance fuse(EmotionInstance e1, EmotionInstance e2) {
+		EmotionInstance fusion = EmotionCombiner.combinar(e1, e2);
+		codex.registrar(fusion);
+		return fusion;
+	}
+
+	public EmotionInstance fuseMultiple(List<EmotionInstance> emotions) {
+		EmotionInstance fusion = EmotionCombiner.combinarMultiples(emotions);
+		codex.registrar(fusion);
+		return fusion;
+	}
+
+	public void reset() {
+		clearBaseEmotions();
+		codex.clear();
+		generateInitialEmotions(5);
+	}
+
+	public void clearBaseEmotions() {
+		baseEmotions.clear();
+	}
+
+	public List<EmotionInstance> getBaseEmotions() {
+		return new ArrayList<>(baseEmotions);
+	}
+
+	public List<EmotionInstance> getCodexEntries() {
+		return codex.getEntries();
 	}
 
 	public EmotionCodex getCodex() {
 		return codex;
 	}
 
-	public EmotionalMap getMapa() {
-		return mapa;
+	public EmotionDominanceMatrix getDominanceMatrix() {
+		return dominanceMatrix;
+	}
+}
+
+/**
+ * Gestor especializado en oleadas de enemigos
+ */
+class WaveManager {
+	private final GameState gameState;
+	private final EnemyFactory enemyFactory;
+	private List<Enemy> currentEnemies;
+
+	public WaveManager(GameState gameState) {
+		this.gameState = gameState;
+		this.enemyFactory = new EnemyFactory();
+		this.currentEnemies = new ArrayList<>();
 	}
 
-	public void initVisual() {
-		batch = new SpriteBatch();
-		font = new BitmapFont(); // Puedes reemplazar por fuente personalizada
-		skin = new Skin(Gdx.files.internal("uiskin.json")); // Requiere archivo en /assets
-		stage = new Stage();
-		Gdx.input.setInputProcessor(stage); // Importante para que capte clics
+	public List<Enemy> createWave(int enemyCount) {
+		currentEnemies = enemyFactory.generarEnemigos(enemyCount, gameState.getDominanceMatrix());
+		return new ArrayList<>(currentEnemies);
+	}
+
+	public List<Enemy> getEnemies() {
+		return new ArrayList<>(currentEnemies);
+	}
+
+	public int getEnemyViewId(Enemy enemy) {
+		int index = currentEnemies.indexOf(enemy);
+		return 100 + Math.max(0, index);
+	}
+}
+
+/**
+ * Resultado de un turno de combate
+ */
+class CombatResult {
+	private final boolean playerAlive;
+	private final boolean enemyAlive;
+	private final int damageToEnemy;
+	private final int damageToPlayer;
+	private final String summary;
+
+	public CombatResult(boolean playerAlive, boolean enemyAlive, int damageToEnemy, int damageToPlayer,
+			String summary) {
+		this.playerAlive = playerAlive;
+		this.enemyAlive = enemyAlive;
+		this.damageToEnemy = damageToEnemy;
+		this.damageToPlayer = damageToPlayer;
+		this.summary = summary;
+	}
+
+	public boolean isPlayerAlive() {
+		return playerAlive;
+	}
+
+	public boolean isEnemyAlive() {
+		return enemyAlive;
+	}
+
+	public boolean isCombatOver() {
+		return !playerAlive || !enemyAlive;
+	}
+
+	public int getDamageToEnemy() {
+		return damageToEnemy;
+	}
+
+	public int getDamageToPlayer() {
+		return damageToPlayer;
+	}
+
+	public String getSummary() {
+		return summary;
+	}
+}
+
+/**
+ * Gestor especializado en recursos visuales
+ */
+class VisualManager {
+	private final BitmapFont font;
+	private final SpriteBatch batch;
+	private final Skin skin;
+	private final Stage stage;
+
+	public VisualManager() {
+		this.batch = new SpriteBatch();
+		this.font = new BitmapFont();
+
+		try {
+			this.skin = new Skin(com.badlogic.gdx.Gdx.files.internal("uiskin.json"));
+		} catch (Exception e) {
+			throw new RuntimeException("No se pudo cargar uiskin.json", e);
+		}
+
+		this.stage = new Stage();
+		com.badlogic.gdx.Gdx.input.setInputProcessor(stage);
 	}
 
 	public BitmapFont getFont() {
@@ -156,57 +391,10 @@ public class GameManager {
 		return stage;
 	}
 
-	   /**
-     * Ejecuta un turno completo de combate.
-     * @param jugador El jugador activo
-     * @param enemigo El enemigo activo
-     * @param accionJugador "atacar", "defender", "usarEmocion"
-     */
-    public void ejecutarTurnoCombate(Player jugador, Enemy enemigo, String accionJugador) {
-        CombatLogger logger = CombatLogger.get();
-
-        if (jugador == null || enemigo == null || !jugador.isAlive() || !enemigo.isAlive()) {
-            logger.log("[Sistema] Jugador o enemigo nulo o muertos.");
-            return;
-        }
-
-        switch (accionJugador.toLowerCase()) {
-        case "atacar":
-            jugador.attack(enemigo);
-            break;
-
-        case "defender":
-            jugador.defender(25); // Cantidad de defensa como antes
-            break;
-
-        case "usaremocion":
-            List<EmotionInstance> emociones = jugador.getEmocionesActivas();
-            if (!emociones.isEmpty()) {
-                jugador.usarEmocion(emociones.get(0));
-            } else {
-                logger.log("[Jugador] No tiene emociones activas.");
-            }
-            break;
-
-        default:
-            logger.log("[Error] Acción no reconocida: " + accionJugador);
-            return;
-    }
-
-        // Efectos por turno (buffs, debuffs, curación)
-        jugador.tickTurnoEmocional();
-        enemigo.tickTurnoEmocional(jugador);
-
-        // Respuesta del enemigo si sigue vivo
-        if (enemigo.isAlive()) {
-            enemigo.atacar(jugador);
-        }
-
-        // Resultado del turno
-        if (!jugador.isAlive()) {
-            logger.log("[Fin] El jugador ha muerto.");
-        } else if (!enemigo.isAlive()) {
-            logger.log("[Fin] El enemigo ha sido derrotado.");
-        }
-    }
+	public void dispose() {
+		batch.dispose();
+		font.dispose();
+		skin.dispose();
+		stage.dispose();
+	}
 }

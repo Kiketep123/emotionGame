@@ -13,7 +13,6 @@ public class EnemyFactory {
 
     /** Matriz guardada para poder usarla en calcularFactorMultiEmotion() */
     private EmotionDominanceMatrix matrix;
-    private final EmotionInstanceFactory emotionFactory = new EmotionInstanceFactory();
 
 
     /**
@@ -31,6 +30,7 @@ public class EnemyFactory {
             EmotionType tipoBase = EmotionType.random();
 
             // 2) Stats base y factor multi-émotion
+            //TODO - usar emociones iniciales del enemigo en el cálculo
             double factorMulti = calcularFactorMultiEmotion(new ArrayList<>(), tipoBase);
 
             int vida  = escala((int)(100 * factorMulti), tipoBase);
@@ -65,7 +65,7 @@ public class EnemyFactory {
             // 5) Emoción inicial
             EmotionInstance em = new EmotionInstanceFactory().generarProcedural();
             e.setEstadoEmocional(em);
-            e.añadirEmocion(em);
+            e.addEmotion(em);
 
             list.add(e);
         }
@@ -163,7 +163,7 @@ public class EnemyFactory {
 
             EmotionInstance em = new EmotionInstanceFactory().generarProcedural();
             e.setEstadoEmocional(em);
-            e.añadirEmocion(em);
+            e.addEmotion(em);
 
             list.add(e);
         }
