@@ -34,4 +34,5 @@ public class EmotionEffectVisualRegistry {
     public static EffectVisualData getVisualData(EmotionEffect effect) {
         return visualDataMap.get(effect);
     }
+
 }

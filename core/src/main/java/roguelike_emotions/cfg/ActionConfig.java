@@ -11,6 +11,9 @@ import com.badlogic.gdx.utils.JsonValue;
 import roguelike_emotions.ui.actions.ActionDescriptor;
 import roguelike_emotions.ui.actions.ActionTheme;
 
+/**
+ * Configuración de acciones cargada desde JSON.
+ */
 public final class ActionConfig {
 	private final List<ActionDescriptor> actions;
 	private final ActionTheme theme;
@@ -28,24 +31,58 @@ public final class ActionConfig {
 		return theme;
 	}
 
-	public static ActionConfig load(FileHandle fh) {
-		JsonValue root = new JsonReader().parse(fh);
-		JsonValue th = root.get("theme");
-		ActionTheme theme = (th == null) ? ActionTheme.defaults()
-				: new ActionTheme(th.getFloat("pillHeight", 40f), th.getFloat("gap", 12f), th.getFloat("padding", 16f),
-						th.getFloat("minPillWidth", 120f));
+	/**
+	 * Carga la configuración desde un archivo JSON.
+	 */
+	public static ActionConfig load(FileHandle file) {
+		try {
+			JsonValue root = new JsonReader().parse(file);
+			ActionTheme theme = loadTheme(root.get("theme"));
+			List<ActionDescriptor> actions = loadActions(root.get("actions"));
+			return new ActionConfig(Collections.unmodifiableList(actions), theme);
+		} catch (Exception e) {
+			System.err.println("Error cargando ActionConfig: " + e.getMessage());
+			return new ActionConfig(Collections.emptyList(), ActionTheme.defaults());
+		}
+	}
 
-		List<ActionDescriptor> list = new ArrayList<>(8);
-		JsonValue arr = root.get("actions");
-		if (arr != null) {
-			for (JsonValue a = arr.child; a != null; a = a.next) {
-				String id = a.getString("id").trim();
-				String label = a.getString("label", id);
-				String hotkey = a.getString("hotkey", null);
-				boolean req = a.getBoolean("requiresTarget", false);
-				list.add(new ActionDescriptor(id, label, hotkey, req));
+	// ========== Helpers privados ==========
+
+	private static ActionTheme loadTheme(JsonValue themeJson) {
+		if (themeJson == null)
+			return ActionTheme.defaults();
+
+		return new ActionTheme(themeJson.getFloat("pillHeight", 40f), themeJson.getFloat("gap", 12f),
+				themeJson.getFloat("padding", 16f), themeJson.getFloat("minPillWidth", 120f));
+	}
+
+	private static List<ActionDescriptor> loadActions(JsonValue actionsArray) {
+		List<ActionDescriptor> list = new ArrayList<>();
+
+		if (actionsArray == null)
+			return list;
+
+		for (JsonValue actionJson = actionsArray.child; actionJson != null; actionJson = actionJson.next) {
+			ActionDescriptor descriptor = parseAction(actionJson);
+			if (descriptor != null) {
+				list.add(descriptor);
 			}
 		}
-		return new ActionConfig(Collections.unmodifiableList(list), theme);
+
+		return list;
+	}
+
+	private static ActionDescriptor parseAction(JsonValue actionJson) {
+		try {
+			String id = actionJson.getString("id").trim();
+			String label = actionJson.getString("label", id);
+			String hotkey = actionJson.getString("hotkey", null);
+			boolean requiresTarget = actionJson.getBoolean("requiresTarget", false);
+
+			return new ActionDescriptor(id, label, hotkey, requiresTarget);
+		} catch (Exception e) {
+			System.err.println("Error parseando acción: " + e.getMessage());
+			return null;
+		}
 	}
 }

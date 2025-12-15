@@ -1,10 +1,23 @@
 package roguelike_emotions.utils;
 
 import java.awt.Color;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
 import roguelike_emotions.effects.EffectDetail;
-import roguelike_emotions.mainMechanics.*;
+import roguelike_emotions.mainMechanics.DominantEmotionType;
+import roguelike_emotions.mainMechanics.EmotionDominanceMatrix;
+import roguelike_emotions.mainMechanics.EmotionEffect;
+import roguelike_emotions.mainMechanics.EmotionInstance;
+import roguelike_emotions.mainMechanics.EmotionNameGenerator;
+import roguelike_emotions.mainMechanics.EmotionType;
 
 /**
  * Combina emociones aplicando sinergias y tensiones según la
@@ -13,7 +26,7 @@ import roguelike_emotions.mainMechanics.*;
 public class EmotionCombiner {
 
 	// ==================== CONSTANTES ====================
-	private static final double FUSION_THRESHOLD = 1.1;
+	private static final double FUSION_THRESHOLD = 1.0;
 	private static final double MIN_COMPATIBILITY_FACTOR = 0.75;
 	private static final double MAX_COMPATIBILITY_FACTOR = 1.25;
 	private static final double COMPATIBILITY_WEIGHT = 0.5;
@@ -44,7 +57,6 @@ public class EmotionCombiner {
 	 */
 	public static EmotionInstance combinar(EmotionInstance e1, EmotionInstance e2) {
 		validateEmotions(e1, e2);
-
 		if (!canFuse(e1, e2)) {
 			throw new IllegalArgumentException(String.format("Las emociones %s y %s no son compatibles para fusionar.",
 					e1.getNombre(), e2.getNombre()));
@@ -56,22 +68,25 @@ public class EmotionCombiner {
 			return cached;
 		}
 
-		// Crear nueva fusión
+		// Crear nueva fusión (LÓGICA EXISTENTE)
 		List<EffectDetail> fusionEffects = mergeEffects(Arrays.asList(e1, e2));
 		double compatibilityFactor = calcularFactorCompatibilidad(e1.getTipoBase(), e2.getTipoBase());
 		List<EffectDetail> adjustedEffects = applyCompatibilityFactor(fusionEffects, compatibilityFactor);
-
 		DominantEmotionType dominantType = EmotionUtils.detectarTipoDominante(e1, e2);
 		EmotionType baseType = EmotionUtils.convertirDominantToEmotionType(dominantType);
-
 		String name = EmotionNameGenerator.generarNombreGuiado(dominantType);
 		String symbol = EmotionNameGenerator.generarSimbolo(dominantType);
 		String color = mixColors(Arrays.asList(e1.getColor(), e2.getColor()));
 
 		EmotionInstance fusion = new EmotionInstance(name, baseType, adjustedEffects, color, symbol);
-		FusionRegistry.registrarFusion(e1.getId(), e2.getId(), fusion);
 
-		return fusion;
+		// ✅ NUEVO: Roll para consciencia
+		EmotionInstance finalResult = applyConsciousnessRoll(e1, e2, fusion);
+
+		// Registrar (puede ser normal o sentiente)
+		FusionRegistry.registrarFusion(e1.getId(), e2.getId(), finalResult);
+
+		return finalResult;
 	}
 
 	/**
@@ -252,6 +267,11 @@ public class EmotionCombiner {
 				.orElse(EmotionType.NEUTRO);
 	}
 
+	private static EmotionInstance applyConsciousnessRoll(EmotionInstance e1, EmotionInstance e2,
+			EmotionInstance baseResult) {
+		// Delegar a handler especializado
+		return SentienceRollHandler.tryAwaken(e1, e2, baseResult);
+	}
 	// ==================== UTILIDADES DE COLOR ====================
 
 	/**

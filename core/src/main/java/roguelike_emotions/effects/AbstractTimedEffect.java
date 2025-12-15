@@ -15,6 +15,10 @@ public abstract class AbstractTimedEffect implements TimedEffect {
         return remainingTurns <= 0;
     }
 
+    @Override
+    public void aumentarDuracion(int amount) {
+		remainingTurns += amount;
+	}
     public int getRemainingTurns() {
         return remainingTurns;
     }

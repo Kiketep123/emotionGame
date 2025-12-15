@@ -1,5 +1,4 @@
 package roguelike_emotions.visual;
-// visual/VisualStyle.java
 
 import java.util.Random;
 

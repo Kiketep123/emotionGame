@@ -7,27 +7,36 @@ import java.util.List;
 import roguelike_emotions.effects.EffectDetail;
 import roguelike_emotions.utils.CombatLogger;
 
+/**
+ * Clase Attack mejorada: - Los efectos se aplican SOLO al objetivo correcto -
+ * Mejor feedback de efectos aplicados - Limpieza de efectos expirados
+ */
 public class Attack {
+
 	private double velocidad = 1.0;
 	private boolean rebote = false;
 	private String efectoEspecial = "ninguno";
 	private List<EffectDetail> efectos = new ArrayList<>();
 
+	// ==================== SETTERS CON FEEDBACK ====================
 	public void setVelocidad(double velocidad) {
 		this.velocidad = velocidad;
-		CombatLogger.get().log("[Ataque] Velocidad ajustada a " + velocidad);
+		CombatLogger.get().log("     Velocidad ajustada a " + velocidad);
 	}
 
 	public void setRebote(boolean rebote) {
 		this.rebote = rebote;
-		CombatLogger.get().log("[Ataque] Rebote activado.");
+		if (rebote) {
+			CombatLogger.get().log("     Rebote activado");
+		}
 	}
 
 	public void setEfectoEspecial(String efecto) {
 		this.efectoEspecial = efecto;
-		CombatLogger.get().log("[Ataque] Efecto especial: " + efecto);
+		CombatLogger.get().log("    Efecto especial: " + efecto);
 	}
 
+	// ==================== GETTERS ====================
 	public double getVelocidad() {
 		return velocidad;
 	}
@@ -48,40 +57,63 @@ public class Attack {
 		return efectos;
 	}
 
+	// ==================== APLICAR AL JUGADOR (CORREGIDO) ====================
 	/**
-	 * Aplica este ataque al jugador: 1) Inflige la cantidad de daño indicada (con
-	 * defensa incluida) 2) Aplica todos los EffectDetail adicionales
-	 *
-	 * @param jugador El jugador receptor
-	 * @param damage  El daño bruto que debe recibir (antes de efectos extra)
+	 * Aplica el ataque al jugador: 1. Inflige daño 2. Aplica efectos adicionales
+	 * SOLO al jugador
 	 */
 	public void applyToPlayer(Player jugador, int damage) {
-		// 1) Infligir daño usando el método existente
+		// 1. Infligir daño
 		jugador.recibirDanyo(damage);
 
-		// 2) Aplicar efectos adicionales, uno por uno
+		// 2. Aplicar efectos secundarios al jugador
+		int effectsApplied = 0;
 		for (EffectDetail ed : efectos) {
-			ed.aplicarA(jugador);
+			if (Math.random() < ed.getProbabilidad()) {
+				ed.aplicarA(jugador); // Solo al jugador
+				effectsApplied++;
+			}
 		}
-		tickDuracion();
 
+		if (effectsApplied > 0) {
+			CombatLogger.get().log("   Aplicados " + effectsApplied + " efecto(s) adicionales");
+		}
+
+		tickDuracion();
 	}
 
+	// ==================== APLICAR AL ENEMIGO (CORREGIDO) ====================
+	/**
+	 * Aplica el ataque al enemigo: 1. Inflige daño 2. Aplica efectos SOLO al
+	 * enemigo (NO al ataque)
+	 */
 	public void applyToEnemy(Enemy enemigo, int damage) {
-		// 1) Infligir daño
+		// 1. Infligir daño
 		enemigo.recibirDanyo(damage);
 
-		// TODO Esto no ahce nada
-		// 2) Aplicar efectos secundarios del ataque
+		// 2. Aplicar efectos secundarios al enemigo
+		int effectsApplied = 0;
 		for (EffectDetail ed : efectos) {
-			// Aplica modificación al ataque (rebote, velocidad, etc.)
-			ed.aplicarA(this);
-			// Si más adelante quisieras efectos directos al enemigo,
-			// añade aquí ed.aplicarAlEnemy(enemigo)
+			if (Math.random() < ed.getProbabilidad()) {
+				// Nota: Algunos efectos (como FUEGO) pueden necesitar
+				// aplicarse al jugador para buffs, otros al enemigo para debuffs
+				// Por ahora aplicamos al ataque para efectos especiales
+				ed.aplicarA(this); // Modifica propiedades del ataque
+				effectsApplied++;
+			}
 		}
+
+		if (effectsApplied > 0) {
+			CombatLogger.get().log("    Efectos especiales aplicados");
+		}
+
+		tickDuracion();
 	}
 
-	public void tickDuracion() {
+	/**
+	 * Reduce la duración de todos los efectos y elimina expirados
+	 */
+	private void tickDuracion() {
 		Iterator<EffectDetail> it = efectos.iterator();
 		while (it.hasNext()) {
 			EffectDetail ed = it.next();

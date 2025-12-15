@@ -22,4 +22,5 @@ public class Debuff extends AbstractTimedEffect {
 	public double getSeverity() {
 		return severity;
 	}
+
 }

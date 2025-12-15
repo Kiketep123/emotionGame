@@ -22,4 +22,5 @@ public class Buff extends AbstractTimedEffect {
 	public double getMultiplier() {
 		return multiplier;
 	}
+
 }

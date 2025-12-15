@@ -6,4 +6,5 @@ public interface TimedEffect {
     void aplicar(Player player);
     boolean reducirDuracion(); // devuelve true si expiró
     String getNombre();        // para logs
+    void aumentarDuracion(int amount);
 }

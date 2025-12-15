@@ -11,67 +11,78 @@ import roguelike_emotions.mainMechanics.EmotionInstance;
 
 /**
  * Interfaz base para cualquier entidad que participe en combate emocional.
- * Tanto Player como Enemy implementan esta interfaz para compartir lógica.
  */
 public interface CombatEntity {
 
-    // ==================== IDENTIDAD ====================
+	// ==================== IDENTIDAD ====================
 
-    String getNombre();
-    EntityType getEntityType();
+	String getNombre();
 
-    enum EntityType {
-        PLAYER,
-        ENEMY,
-        ALLY,
-        BOSS
-    }
+	EntityType getEntityType();
 
-    // ==================== ESTADÍSTICAS BÁSICAS ====================
+	enum EntityType {
+		PLAYER, ENEMY, ALLY, BOSS
+	}
 
-    int getHealth();
-    void setHealth(int health);
-    int getMaxHealth();
+	// ==================== ESTADÍSTICAS BÁSICAS ====================
 
-    int getBaseDamage();
-    void setBaseDamage(int damage);
+	int getHealth();
 
-    int getBaseDefense();
-    void setBaseDefense(int defense);
+	void setHealth(int health);
 
-    int getSpeed();
-    void setSpeed(int speed);
+	int getMaxHealth();
 
-    // ==================== SISTEMA EMOCIONAL ====================
+	int getBaseDamage();
 
-    List<EmotionInstance> getEmocionesActivas();
-    void addEmocion(EmotionInstance emotion);
-    void removeEmocion(EmotionInstance emotion);
-    void clearEmociones();
+	void setBaseDamage(int damage);
 
-    // ==================== EFECTOS Y ESTADOS ====================
+	int getBaseDefense();
 
-    List<EffectDetail> getEfectosActivos();
-    List<OverTimeHeal> getHealOverTimeEffects();
+	void setBaseDefense(int defense);
 
-    Map<String, Buff> getActiveBuffs();
-    Map<String, Debuff> getActiveDebuffs();
+	int getSpeed();
 
-    // ==================== ESTADO DE COMBATE ====================
+	void setSpeed(int speed);
 
-    boolean isAlive();
-    boolean isStunned();
-    boolean canAct();
+	// ==================== SISTEMA EMOCIONAL ====================
 
-    int takeDamage(int amount);
-    void heal(int amount);
+	List<EmotionInstance> getEmocionesActivas();
 
-    // ==================== HABILIDADES ====================
+	void addEmocion(EmotionInstance emotion);
 
-    boolean canUseActive();
-    void setCanUseActive(boolean canUse);
+	void removeEmocion(EmotionInstance emotion);
 
-    int getCooldownTurns();
-    void setCooldownTurns(int turns);
+	void clearEmociones();
+
+	// ==================== EFECTOS Y ESTADOS ====================
+
+	List<EffectDetail> getEfectosActivos();
+
+	List<OverTimeHeal> getHealOverTimeEffects();
+
+	Map<String, Buff> getActiveBuffs();
+
+	Map<String, Debuff> getActiveDebuffs();
+
+	// ==================== ESTADO DE COMBATE ====================
+
+	boolean isAlive();
+
+	boolean isStunned();
+
+	boolean canAct();
+
+	int takeDamage(int amount);
+
+	void heal(int amount);
+
+	// ==================== HABILIDADES ====================
+
+	boolean canUseActive();
+
+	void setCanUseActive(boolean canUse);
+
+	int getCooldownTurns();
+
+	void setCooldownTurns(int turns);
 }
-

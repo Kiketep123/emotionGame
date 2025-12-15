@@ -1,8 +1,8 @@
 {
   "actions": [
-    { "id": "ATTACK",      "label": "Atacar",          "icon": "icons/sword.png",   "hotkey": "NUM_1", "requiresTarget": true,  "tooltip": "Ataque básico" },
-    { "id": "DEFEND",      "label": "Defender",        "icon": "icons/shield.png",  "hotkey": "NUM_2", "requiresTarget": false, "tooltip": "+Defensa temporal" },
-    { "id": "USE_EMOTION", "label": "Usar emoción",    "icon": "icons/heart.png",   "hotkey": "NUM_3", "requiresTarget": false, "tooltip": "Activa emoción" },
+    { "id": "ATTACK",      "label": "Atacar",          "icon": "icons/sword.png",   "hotkey": "Q", "requiresTarget": true,  "tooltip": "Ataque básico" },
+    { "id": "DEFEND",      "label": "Defender",        "icon": "icons/shield.png",  "hotkey": "W", "requiresTarget": false, "tooltip": "+Defensa temporal" },
+    { "id": "USE_EMOTION", "label": "Usar emoción",    "icon": "icons/heart.png",   "hotkey": "E", "requiresTarget": false, "tooltip": "Activa emoción" },
     { "id": "ITEM",        "label": "Objeto",          "icon": "icons/potion.png",  "hotkey": "I",     "requiresTarget": false, "tooltip": "Inventario" },
     { "id": "FLEE",        "label": "Huir",            "icon": "icons/boot.png",    "hotkey": "F",     "requiresTarget": false, "tooltip": "Termina combate" }
   ],

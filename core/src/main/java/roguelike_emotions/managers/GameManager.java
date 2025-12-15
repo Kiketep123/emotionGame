@@ -2,9 +2,9 @@ package roguelike_emotions.managers;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -18,6 +18,9 @@ import roguelike_emotions.mainMechanics.EmotionDominanceMatrix;
 import roguelike_emotions.mainMechanics.EmotionInstance;
 import roguelike_emotions.mainMechanics.EmotionInstanceFactory;
 import roguelike_emotions.mainMechanics.EmotionNameGenerator;
+import roguelike_emotions.managers.CombatManager.CombatResult;
+import roguelike_emotions.managers.CombatManager.PlayerAction;
+import roguelike_emotions.ui.ElegantSkinFactory;
 import roguelike_emotions.utils.EmotionCombiner;
 
 /**
@@ -33,17 +36,23 @@ public class GameManager {
 	private final CombatManager combatManager;
 	private final VisualManager visualManager;
 	private final WaveManager waveManager;
+	private EmotionInstance lastVictoryReward;
+
+	public EmotionInstance getLastVictoryReward() {
+		return lastVictoryReward;
+	}
 
 	// Estado del juego
 	private final GameState gameState;
 
 	private GameManager() {
+		instance = this;
 		this.gameState = new GameState();
 		this.emotionManager = new EmotionManager(gameState);
-		this.visualManager = new VisualManager();
 		this.combatManager = new CombatManager();
 		this.waveManager = new WaveManager(gameState);
 
+		this.visualManager = new VisualManager();
 		initialize();
 	}
 
@@ -60,14 +69,26 @@ public class GameManager {
 	public void reset() {
 		gameState.reset();
 		emotionManager.reset();
-		waveManager.createWave(1 + new Random().nextInt(10));
+		waveManager.createWave(1 + new Random().nextInt(3));
+	}
+
+	/**
+	 * Prepara el siguiente combate sin reiniciar el run. Mantiene emociones activas
+	 * y códice.
+	 */
+	public void prepareNextCombat() {
+		// Reset solo de combate
+		gameState.getPlayer().resetCombatState();
+
+		// Nueva oleada
+		waveManager.createWave(1 + new Random().nextInt(1));
 	}
 
 	private void initialize() {
 		gameState.getPlayer().resetState();
 		EmotionNameGenerator.resetTracking();
-		waveManager.createWave(1 + new Random().nextInt(4));
-		emotionManager.generateInitialEmotions(2);
+		waveManager.createWave(1 + new Random().nextInt(1));
+		emotionManager.generateInitialEmotions(1);
 	}
 
 	// ========== Delegación a Emotion Manager ==========
@@ -138,20 +159,18 @@ public class GameManager {
 		return gameState.getPlayer();
 	}
 
-	// ========== Métodos de compatibilidad (deprecated) ==========
+	public EmotionInstance grantVictoryEmotionReward() {
 
-	/**
-	 * Para testing - permite inyectar una instancia mock
-	 */
-	static void setInstance(GameManager mockInstance) {
-		instance = mockInstance;
-	}
+		Player p = this.gameState.getPlayer();
+		EmotionInstance reward = emotionManager.generateEmotion();
 
-	/**
-	 * Para testing - resetea el singleton
-	 */
-	static void clearInstance() {
-		instance = null;
+		// Añadir al jugador (acumula)
+		p.añadirEmocion(reward);
+
+		// Registrar en el códice (architecture-friendly)
+		emotionManager.getCodex().registrar(reward);
+		this.lastVictoryReward = reward;
+		return reward;
 	}
 
 }
@@ -159,25 +178,6 @@ public class GameManager {
 // CLASES AUXILIARES
 // ============================================================
 
-/**
- * Enumeración de acciones posibles del jugador
- */
-enum PlayerAction {
-	ATTACK, DEFEND, USE_EMOTION;
-
-	public static PlayerAction fromString(String action) {
-		if (action == null)
-			return ATTACK;
-
-		String normalized = action.trim().toLowerCase(Locale.ROOT);
-		return switch (normalized) {
-		case "atacar", "attack" -> ATTACK;
-		case "defender", "defend" -> DEFEND;
-		case "usaremocion", "useemotion", "emotion" -> USE_EMOTION;
-		default -> ATTACK; // Default seguro
-		};
-	}
-}
 
 /**
  * Encapsula el estado global del juego
@@ -240,6 +240,12 @@ class EmotionManager {
 		}
 	}
 
+	public EmotionInstance generateEmotion() {
+		EmotionInstance newEmotion = factory.generarProcedural();
+		baseEmotions.add(newEmotion);
+		return newEmotion;
+	}
+
 	public EmotionInstance fuse(EmotionInstance e1, EmotionInstance e2) {
 		EmotionInstance fusion = EmotionCombiner.combinar(e1, e2);
 		codex.registrar(fusion);
@@ -277,6 +283,7 @@ class EmotionManager {
 	public EmotionDominanceMatrix getDominanceMatrix() {
 		return dominanceMatrix;
 	}
+
 }
 
 /**
@@ -311,68 +318,32 @@ class WaveManager {
 /**
  * Resultado de un turno de combate
  */
-class CombatResult {
-	private final boolean playerAlive;
-	private final boolean enemyAlive;
-	private final int damageToEnemy;
-	private final int damageToPlayer;
-	private final String summary;
 
-	public CombatResult(boolean playerAlive, boolean enemyAlive, int damageToEnemy, int damageToPlayer,
-			String summary) {
-		this.playerAlive = playerAlive;
-		this.enemyAlive = enemyAlive;
-		this.damageToEnemy = damageToEnemy;
-		this.damageToPlayer = damageToPlayer;
-		this.summary = summary;
-	}
-
-	public boolean isPlayerAlive() {
-		return playerAlive;
-	}
-
-	public boolean isEnemyAlive() {
-		return enemyAlive;
-	}
-
-	public boolean isCombatOver() {
-		return !playerAlive || !enemyAlive;
-	}
-
-	public int getDamageToEnemy() {
-		return damageToEnemy;
-	}
-
-	public int getDamageToPlayer() {
-		return damageToPlayer;
-	}
-
-	public String getSummary() {
-		return summary;
-	}
-}
-
-/**
- * Gestor especializado en recursos visuales
- */
 class VisualManager {
+
 	private final BitmapFont font;
 	private final SpriteBatch batch;
 	private final Skin skin;
 	private final Stage stage;
 
 	public VisualManager() {
+
+		// Un solo batch global
 		this.batch = new SpriteBatch();
+
+		// Por ahora: font por defecto (tú vas a cambiarlo a FreeType luego)
 		this.font = new BitmapFont();
 
+		// Skin UI
 		try {
-			this.skin = new Skin(com.badlogic.gdx.Gdx.files.internal("uiskin.json"));
+			this.skin = ElegantSkinFactory.create();
 		} catch (Exception e) {
-			throw new RuntimeException("No se pudo cargar uiskin.json", e);
+			throw new RuntimeException("Error cargando uiskin.json", e);
 		}
 
+		// Stage global
 		this.stage = new Stage();
-		com.badlogic.gdx.Gdx.input.setInputProcessor(stage);
+		Gdx.input.setInputProcessor(stage);
 	}
 
 	public BitmapFont getFont() {

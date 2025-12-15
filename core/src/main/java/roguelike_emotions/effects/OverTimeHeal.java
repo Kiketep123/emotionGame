@@ -16,4 +16,5 @@ public class OverTimeHeal extends AbstractTimedEffect {
 	public int getAmount() {
 		return amount;
 	}
+
 }

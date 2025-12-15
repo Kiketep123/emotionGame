@@ -4,27 +4,27 @@
     "target": "attack",
     "method": "setEfectoEspecial",
     "args": ["quemadura"],
-    "intensity": 1.0,
+    "intensity": 20.0,
     "duration": 3,
-    "probability": 0.5
+    "probability": 0.8
   },
   {
     "effect": "CURACION",
     "target": "player",
     "method": "curar",
-    "args": [10],
-    "intensity": 10.0,
+    "args": [30],
+    "intensity": 30.0,
     "duration": 1,
     "probability": 1.0
   },
   {
     "effect": "VENENO",
-    "target": "player",
-    "method": "intoxicar",
-    "args": [3],
-    "intensity": 3.0,
-    "duration": 5,
-    "probability": 0.7
+    "target": "attack",
+    "method": "setEfectoEspecial",
+    "args": ["veneno"],
+    "intensity": 6.0,
+    "duration": 3,
+    "probability": 0.8
   },
   {
     "effect": "REBOTE",
@@ -33,41 +33,41 @@
     "args": [true],
     "intensity": 1.0,
     "duration": 1,
-    "probability": 0.5
+    "probability": 0.6
   },
   {
     "effect": "RALENTIZAR",
     "target": "attack",
     "method": "setVelocidad",
-    "args": [0.8],
-    "intensity": 0.2,
+    "args": [0.5],
+    "intensity": 0.5,
     "duration": 2,
-    "probability": 0.6
+    "probability": 0.7
   },
   {
     "effect": "DEFENDER",
     "target": "player",
     "method": "defender",
-    "args": [25],
-    "intensity": 25.0,
-    "duration": 1,
+    "args": [8],
+    "intensity": 8.0,
+    "duration": 2,
     "probability": 1.0
   },
   {
     "effect": "STUN",
     "target": "player",
     "method": "applyDebuff",
-    "args": ["stun", 1],
+    "args": ["stun", 1.0, 1],
     "intensity": 1.0,
     "duration": 1,
-    "probability": 0.3
+    "probability": 0.4
   },
   {
     "effect": "REGENERACION",
     "target": "player",
     "method": "applyHealOverTime",
-    "args": [5, 3],
-    "intensity": 5.0,
+    "args": [10, 3],
+    "intensity": 10.0,
     "duration": 3,
     "probability": 1.0
   },
@@ -75,8 +75,8 @@
     "effect": "ENERGIZAR",
     "target": "player",
     "method": "applyBuff",
-    "args": ["damageBoost", 1.3, 3],
-    "intensity": 1.3,
+    "args": ["damageBoost", 1.5, 3],
+    "intensity": 1.5,
     "duration": 3,
     "probability": 1.0
   }

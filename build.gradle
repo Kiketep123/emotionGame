@@ -1,12 +1,20 @@
-
 buildscript {
     repositories {
         mavenCentral()
+        google()
+        gradlePluginPortal()
     }
 }
 
-allprojects {
+ext {
+    gdxVersion = "1.12.1"
+}
+
+subprojects {
     repositories {
         mavenCentral()
+        google()
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
     }
 }

@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
 import roguelike_emotions.characters.Player;
+import roguelike_emotions.graphics.passes.VfxPass;
 import roguelike_emotions.managers.GameManager;
 import roguelike_emotions.ui.turns.TurnQueue;
 import roguelike_emotions.utils.LayoutUtil;
@@ -32,6 +33,7 @@ public class RenderContext {
 	public Integer selectedEnemyViewId = null; // ej. 100 + índice
 	public String selectedActionLabel = "atacar"; // "atacar", "defender", "usar emoción"
 	public final Map<Integer, ActorView> views = new HashMap<>();
+	public VfxPass vfxPass = null;
 	// Contenedor de textos activos
 	private final List<FloatingText> texts = new ArrayList<>();
 	// Cola de turnos (UI)

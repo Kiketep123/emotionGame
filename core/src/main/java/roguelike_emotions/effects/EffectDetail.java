@@ -2,6 +2,8 @@ package roguelike_emotions.effects;
 
 import java.util.List;
 
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+
 import roguelike_emotions.cfg.EffectConfig;
 import roguelike_emotions.cfg.EffectConfigLoader;
 import roguelike_emotions.characters.Attack;
@@ -9,6 +11,7 @@ import roguelike_emotions.characters.Player;
 import roguelike_emotions.mainMechanics.EmotionEffect;
 import roguelike_emotions.ui.EffectVisualData;
 import roguelike_emotions.ui.EmotionEffectVisualRegistry;
+import roguelike_emotions.ui.IconRegistry;
 
 public class EffectDetail extends AbstractTimedEffect {
 	public EffectDetail(EmotionEffect tipo, double intensidad, double probabilidad, int duracionRestante) {
@@ -48,25 +51,28 @@ public class EffectDetail extends AbstractTimedEffect {
 				continue;
 
 			try {
-			    List<Object> args = config.getArgs();
-			    Class<?>[] argTypes = args.stream().map(arg -> {
-			        if (arg instanceof Integer) return int.class;
-			        if (arg instanceof Double) return double.class;
-			        if (arg instanceof Boolean) return boolean.class;
-			        return String.class;
-			    }).toArray(Class<?>[]::new);
+				List<Object> args = config.getArgs();
+				Class<?>[] argTypes = args.stream().map(arg -> {
+					if (arg instanceof Integer)
+						return int.class;
+					if (arg instanceof Double)
+						return double.class;
+					if (arg instanceof Boolean)
+						return boolean.class;
+					return String.class;
+				}).toArray(Class<?>[]::new);
 
-			    // Invoca el método con argumentos exactos
-			    objetivo.getClass()
-			            .getMethod(config.getMethod(), argTypes)
-			            .invoke(objetivo, args.toArray());
+				// Invoca el método con argumentos exactos
+				objetivo.getClass().getMethod(config.getMethod(), argTypes).invoke(objetivo, args.toArray());
 
 			} catch (NoSuchMethodException e) {
-			    System.err.println("[ERROR] Método no encontrado: " + config.getMethod() + " con argumentos " + config.getArgs());
-			    e.printStackTrace();
+				System.err.println(
+						"[ERROR] Método no encontrado: " + config.getMethod() + " con argumentos " + config.getArgs());
+				e.printStackTrace();
 			} catch (Exception e) {
-			    System.err.println("[ERROR] Fallo al aplicar efecto " + tipo + " sobre " + config.getTarget() + ": " + e.getMessage());
-			    e.printStackTrace();
+				System.err.println("[ERROR] Fallo al aplicar efecto " + tipo + " sobre " + config.getTarget() + ": "
+						+ e.getMessage());
+				e.printStackTrace();
 			}
 
 		}
@@ -96,7 +102,6 @@ public class EffectDetail extends AbstractTimedEffect {
 		this.probabilidad = probabilidad;
 	}
 
-
 	public void setDuracionRestante(int duracionRestante) {
 		this.duracionRestante = duracionRestante;
 	}
@@ -119,26 +124,27 @@ public class EffectDetail extends AbstractTimedEffect {
 	public int getRemainingTurns() {
 		return duracionRestante;
 	}
-	public String getFormattedEffectInfo() {
-	    EffectVisualData visual = EmotionEffectVisualRegistry.getVisualData(tipo);
-	    if (visual == null) {
-	        return "[ERROR] Sin datos visuales para: " + tipo;
-	    }
 
-	    return String.format(
-	        "[%s]\n" +
-	        " → Duración: %d turnos\n" +
-	        " → Intensidad: %.2f\n" +
-	        " → Sprite: %s\n" +
-	        " → Color UI: %s\n" +
-	        " → CSS: %s\n",
-	        visual.getDisplayName(),
-	        duracionRestante,
-	        intensidad,
-	        visual.getSpriteId(),
-	        visual.getUiColorHex(),
-	        visual.getCssClass()
-	    );
+	public String getFormattedEffectInfo() {
+		EffectVisualData visual = EmotionEffectVisualRegistry.getVisualData(tipo);
+		if (visual == null) {
+			return "[ERROR] Sin datos visuales para: " + tipo;
+		}
+
+		return String.format(
+				"[%s]\n" + " → Duración: %d turnos\n" + " → Intensidad: %.2f\n" + " → Sprite: %s\n"
+						+ " → Color UI: %s\n" + " → CSS: %s\n",
+				visual.getDisplayName(), duracionRestante, intensidad, visual.getSpriteId(), visual.getUiColorHex(),
+				visual.getCssClass());
+	}
+
+	public Drawable getIconDrawable() {
+		return IconRegistry.effectDrawable(getTipo());
+	}
+
+	@Override
+	public void aumentarDuracion(int amount) {
+		this.duracionRestante += amount;
 	}
 
 }
